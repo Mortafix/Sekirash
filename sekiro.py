@@ -14,14 +14,13 @@ BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
 ERASE = '\x1b[1A\x1b[2K'
 
-PLAYER_MOVE = {'n':'nothing','j':'jump','d':'dodge','a':'attack','mck':'mikiri counter'}
-BOSS_MOVE = {'s':'swipe','g':'grab','m':'mikiri','n':'nothing'}
-FIGHTERS = [PLAYER_MOVE,BOSS_MOVE]
-VS_MATRIX = [[-1,-1,-1,0],
-			 [0,-1,-1,0],
-			 [-1,0,0,0],
-			 [-1,-1,-1,1],
-			 [-1,-1,1,0]]
+#PLAYER_MOVES = {'n':'nothing','j':'jump','d':'dodge','a':'attack','mck':'mikiri counter'}
+#BOSS_MOVE = {'n':'nothing','s':'swipe','g':'grab','m':'mikiri'}
+VS_MATRIX = [[0,-1,-1,-1],
+			 [0,0,-1,-1],
+			 [0,-1,0,0],
+			 [1,-1,-1,-1],
+			 [0,-1,-1,1]]
 
 # Input functions -----------------------------------
 
@@ -40,13 +39,13 @@ def input_with_timeout(prompt, timeout):
 
 # Move functions ------------------------------------
 
-def damage_vs(player_move,enemy_move):
+def damage_vs(movesets,player_move,enemy_move):
 	'''Return damage after versus: 0 -> no damage, 1 -> enemy takes damage and -1 player takes damage'''
-	return VS_MATRIX[list(PLAYER_MOVE.keys()).index(player_move)][list(BOSS_MOVE.keys()).index(enemy_move)]
+	return VS_MATRIX[get_shortcut(movesets[0]).index(player_move)][get_shortcut(movesets[1]).index(enemy_move)]
 
-def possible_move(move):
+def possible_move(moveset,move):
 	'''1 if possible move, 0 instead'''
-	return move in PLAYER_MOVE.keys()
+	return move in get_shortcut(moveset)
 
 def rand_move(moveset):
 	'''Generate a random move for the enemy'''
@@ -54,9 +53,9 @@ def rand_move(moveset):
 
 # Printing functions --------------------------------
 
-def get_name(move,who):
+def get_name(fighters,move,who):
 	'''Printing: move name'''
-	return FIGHTERS[who][move]
+	return [n for s,n in fighters[who] if s == move][0]
  
 def hp_bar(hp_total,hp_left):
 	'''Printing: HP bar'''
@@ -69,11 +68,12 @@ def versus_step(player,enemy,enemy_hp_left):
 	return '{5}{0:<{4}}{6} {1}\n{5}{2:>{4}}{6} {3}'.format(player[0],hp_bar(player[1],player[2]),enemy[0],hp_bar(enemy[1],enemy_hp_left),max_string,BOLD,ENDC)
 
 def print_title(string):
+	'''Printing: action title'''
 	print(BOLD+UNDERLINE+string+ENDC)
 
 # Actions functions --------------------------------
 
-def battle(player,enemy):
+def battle(player,enemy,fighters_moveset):
 	'''Battle: enemy'''
 	remove_menu()
 	print_title('Boss battle'); sleep(1)
@@ -91,13 +91,13 @@ def battle(player,enemy):
 		try:
 			print('Enemy does ',end='')
 			sleep(random())
-			pm = input_with_timeout(get_name(bm,1)+' > ',enemy[4])
-			if possible_move(pm):
-				dmg = damage_vs(pm,bm)
+			pm = input_with_timeout(get_name(fighters_moveset,bm,1)+' > ',enemy[4])
+			if possible_move(fighters_moveset[0],pm):
+				dmg = damage_vs(fighters_moveset,pm,bm)
 			else:
-				dmg = damage_vs('n',bm)
+				dmg = damage_vs(fighters_moveset,'n',bm)
 		except ValueError:
-			dmg = damage_vs('n',bm)
+			dmg = damage_vs(fighters_moveset,'n',bm)
 			print('nothing..')
 		finally:
 			if dmg == 1:
@@ -144,6 +144,20 @@ def strength_training(player):
 	except ValueError:
 		print(OKGREEN+'\nYou fool!'+ENDC+' (press ENTER before timeout)\n')
 
+def dojo(moveset_p,moveset_b):
+	'''Dojo: train moveset'''
+	remove_menu()
+	print_title('Dojo')
+	print(WARNING+'Player moveset'+ENDC)
+	print('\n'.join(['  {0:<12} {1}'.format(UNDERLINE+k+ENDC,v) for k,v in moveset_p]))
+	print(WARNING+'Boss moveset'+ENDC)
+	print('\n'.join(['  {0:<12} {1}'.format(UNDERLINE+k+ENDC,v) for k,v in moveset_b]))
+	print()
+	print('\\'+WARNING+'B'+ENDC+'   '+' '.join(['{:<11}'.format(UNDERLINE+move+ENDC) for move in get_shortcut(moveset_b)]))
+	print(WARNING+'P'+ENDC)
+	print('\n'.join(['{:<13}'.format(UNDERLINE+get_shortcut(moveset_p)[i]+ENDC)+'   '.join([replace_dmg(v) for v in row]) for i,row in enumerate(PARTIAL_MATRIX)]))
+	print()
+
 def stats(player):
 	'''Print: stats'''
 	remove_menu()
@@ -166,6 +180,19 @@ def help():
 
 # Other functions -----------------------------------
 
+def load_moveset(filename,level):
+	'''Load moveset base on player level'''
+	csv_moveset = read_csv_moveset(filename)
+	return [(s,n) for l,s,n in csv_moveset if l <= level]
+
+def get_shortcut(moveset):
+	'''Return list with actions shortcut'''
+	return [s for s,n in moveset]
+
+def load_vs_matrix(moveset_player,moveset_boss,total_matrix):
+	'''Get partial table'''
+	return [[x for x in row[:len(moveset_boss)]] for row in total_matrix[:len(moveset_player)]]
+
 def possible_choise(choise,choise_list,type_choise):
 	'''Possible choice from menu'''
 	try:
@@ -175,13 +202,26 @@ def possible_choise(choise,choise_list,type_choise):
 		return False
 
 def remove_menu():
-	n_rows = 8
+	'''Remove all the menu rows'''
+	n_rows = 9
 	print(ERASE*n_rows,end='\r')
 
-def read_csv(filename):
+def read_csv_moveset(filename):
+	'''Read csv: moveset'''
+	with open(filename) as csv_file:
+		csv_reader = csv.reader(csv_file, delimiter=',')
+		return [(int(l),str(s),str(n)) for l,s,n in [row for row in csv_reader][1:]]
+
+def read_csv_bosses(filename):
+	'''Read csv: bosses'''
 	with open(filename) as csv_file:
 		csv_reader = csv.reader(csv_file, delimiter=',')
 		return [(str(n),int(h),int(hl),int(d),int(v),str(m)) for n,h,hl,d,v,m in [row for row in csv_reader][1:]]
+
+def replace_dmg(v):
+	if v == 1: return OKGREEN+'O'+ENDC
+	elif v == -1: return FAIL+'X'+ENDC
+	else: return '-' 
 
 # ---------------------------------------------------
 
@@ -189,25 +229,30 @@ if __name__ == '__main__':
 	p_stats = [1,0.1,0]
 	p_hp = 401
 	player = ['Mortafix',p_hp,1,p_stats,0]
-	enemies = read_csv('bosses.csv')
-	print(enemies)
-	menu = BOLD+UNDERLINE+'MENU'+ENDC+'\ns - Player stats\nt - Strength training\nb - Boss battle\nr - Rest\nh - Help\nq - Save and quit\nChoise: '
+	enemies = read_csv_bosses('bosses.csv')
+	PLAYER_MOVES = load_moveset('moveset_player.csv',player[4])
+	BOSS_MOVES = load_moveset('moveset_bosses.csv',player[4])
+	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
+	PARTIAL_MATRIX = load_vs_matrix(PLAYER_MOVES,BOSS_MOVES,VS_MATRIX)
+	menu = BOLD+UNDERLINE+'MENU'+ENDC+'\ns - Player stats\nt - Strength training\nb - Boss battle\nd - Dojo\nr - Rest\nh - Help\nq - Save and quit\nChoise: '
 	# MENU -----------------------------------
 	while True:
 		m = input(menu)
-		while not possible_choise(m,['s','t','b','q','r','h'],str):
+		while not possible_choise(m,['s','t','b','q','r','h','d'],str):
 			remove_menu()
 			m = input(menu)
-		while m == 'h' or not possible_choise(m,['s','t','b','q','r','h'],str):
+		while m == 'h' or not possible_choise(m,['s','t','b','q','r','h','d'],str):
 			m = help()
 		if m == 's':
 			stats(player)
 		elif m == 't':
 			strength_training(player)
 		elif m == 'b':
-			battle(player,enemies[player[4]])
+			battle(player,enemies[player[4]],FIGHTERS_MOVESET)
 		elif m == 'r':
 			rest(player)
+		elif m == 'd':
+			dojo(PLAYER_MOVES,BOSS_MOVES)
 		elif m == 'q':
 			print(WARNING+'Game saved.'+ENDC)
 			break
