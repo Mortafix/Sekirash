@@ -3,6 +3,7 @@ from random import choice,random
 from re import findall
 import signal
 import csv
+from getchar import _Getch
 
 HEADER = '\033[95m'
 OKBLUE = '\033[94m'
@@ -14,8 +15,14 @@ BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
 ERASE = '\x1b[1A\x1b[2K'
 
-#PLAYER_MOVES = {'n':'nothing','j':'jump','d':'dodge','a':'attack','mck':'mikiri counter'}
-#BOSS_MOVE = {'n':'nothing','s':'swipe','g':'grab','m':'mikiri'}
+MENU = [('s','Player stats','check all the players stats'),
+		('t','Strength training','upgrade strenght value'),
+		('b','Boss battle','start a boss fight'),
+		('d','Dojo','learn the moveset'),
+		('r','Rest','restore stamina'),
+		('h','Help','display menu with help'),
+		('q','Save and quit','save progress and quit the game')]
+
 VS_MATRIX = [[0,-1,-1,-1],
 			 [0,0,-1,-1],
 			 [0,-1,0,0],
@@ -24,16 +31,16 @@ VS_MATRIX = [[0,-1,-1,-1],
 
 # Input functions -----------------------------------
 
-def alarm_handler(signum, frame):
+def alarm_handler(signum,frame):
 	'''Raise a timeout error'''
 	raise ValueError
 
-def input_with_timeout(prompt, timeout):
+def input_with_timeout(timeout,inkey):
 	'''Input with timeout'''
 	signal.signal(signal.SIGALRM, alarm_handler)
 	signal.alarm(timeout)
 	try:
-		return input(prompt)
+		return inkey()
 	finally:
 		signal.alarm(0)
 
@@ -67,47 +74,54 @@ def versus_step(player,enemy,enemy_hp_left):
 	max_string = max(len(player[0]),len(enemy[0]))
 	return '{5}{0:<{4}}{6} {1}\n{5}{2:>{4}}{6} {3}'.format(player[0],hp_bar(player[1],player[2]),enemy[0],hp_bar(enemy[1],enemy_hp_left),max_string,BOLD,ENDC)
 
-def print_title(string):
+def set_title(string):
 	'''Printing: action title'''
-	print(BOLD+UNDERLINE+string+ENDC)
+	return BOLD+UNDERLINE+string+ENDC
+
+def get_menu(title,hlp=False):
+	'''Printing: menu (w or w/o help)'''
+	print(set_title(title))
+	return '\n'.join(['{0} - {1} [{3}{2}{4}]'.format(s,w,h,UNDERLINE,ENDC) if hlp else '{} - {}'.format(s,w) for s,w,h in MENU])
 
 # Actions functions --------------------------------
 
 def battle(player,enemy,fighters_moveset):
 	'''Battle: enemy'''
 	remove_menu()
-	print_title('Boss battle'); sleep(1)
+	print(set_title('Boss battle')); sleep(1)
 
 	if player[3][2] == 0:
 		print('Seems you\'re out of '+FAIL+'stamina'+ENDC+' (0/3) [check '+WARNING+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+WARNING+'rest'+ENDC+']\n')
 		return -1
 	else: player[3][2] -= 1
 
+	inkey = _Getch()
 	print('A new Boss appeared..'); sleep(2); print(BOLD+FAIL+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
 	enemy_hp_left = enemy[2]
+	enemy_velocity = int(enemy[4] / 10000 * player[3][1])
 	while enemy_hp_left > 0 and player[2] > 0:
 		print(versus_step(player,enemy,enemy_hp_left))
 		bm = rand_move(enemy[5])
 		try:
-			print('Enemy does ',end='')
 			sleep(random())
-			pm = input_with_timeout(get_name(fighters_moveset,bm,1)+' > ',enemy[4])
+			print('Enemy does',get_name(fighters_moveset,bm,1),end='\n')
+			pm = input_with_timeout(enemy_velocity,inkey)
 			if possible_move(fighters_moveset[0],pm):
 				dmg = damage_vs(fighters_moveset,pm,bm)
 			else:
 				dmg = damage_vs(fighters_moveset,'n',bm)
 		except ValueError:
 			dmg = damage_vs(fighters_moveset,'n',bm)
-			print('nothing..')
 		finally:
+			space_cancel=' '*15
 			if dmg == 1:
-				print('Boss takes '+OKGREEN+'DAMAGE'+ENDC)
+				print('Boss takes '+OKGREEN+'DAMAGE'+ENDC+space_cancel)
 				enemy_hp_left -= player[3][0]
 			if dmg == -1:
-				print('Player takes '+FAIL+'DAMAGE'+ENDC)
+				print('Player takes '+FAIL+'DAMAGE'+ENDC+space_cancel)
 				player[2] -= enemy[3]
 			if dmg == 0:
-				print('Nothing happens..')
+				print('Nothing happens..'+space_cancel)
 			sleep(1)
 			print(ERASE+ERASE+ERASE+ERASE,end='')
 	print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
@@ -117,7 +131,7 @@ def battle(player,enemy,fighters_moveset):
 def strength_training(player):
 	'''Battle: improves strenght'''
 	remove_menu()
-	print_title('Strength training'); sleep(1)
+	print(set_title('Strength training')); sleep(1)
 
 	if player[3][2] == 0:
 		print('Seems you\'re out of '+FAIL+'stamina'+ENDC+' (0/3) [check '+WARNING+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+WARNING+'rest'+ENDC+']\n')
@@ -147,7 +161,7 @@ def strength_training(player):
 def dojo(moveset_p,moveset_b):
 	'''Dojo: train moveset'''
 	remove_menu()
-	print_title('Dojo')
+	print(set_title('Dojo'))
 	print(WARNING+'Player moveset'+ENDC)
 	print('\n'.join(['  {0:<12} {1}'.format(UNDERLINE+k+ENDC,v) for k,v in moveset_p]))
 	print(WARNING+'Boss moveset'+ENDC)
@@ -161,13 +175,13 @@ def dojo(moveset_p,moveset_b):
 def stats(player):
 	'''Print: stats'''
 	remove_menu()
-	print_title(player[0]+' stats')
+	print(set_title(player[0]+' stats'))
 	print('{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3}{12}\n{8:<11}{11}{10}{4}{12}\n{9:<11}{11}{10}{5}{12} / 3\n'.format(player[0],player[1],player[2],player[3][0],player[3][1],player[3][2],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE))
 
 def rest(player):
 	'''Resting: TODO'''
 	remove_menu()
-	print_title('Resting')
+	print(set_title('Resting'))
 	player[2] = player[1]
 	player[3][2] = 3
 	print(OKGREEN+'Rest completed!\n'+ENDC)
@@ -175,8 +189,8 @@ def rest(player):
 def help():
 	'''Print: menu with help'''
 	remove_menu()
-	print_title('MENU [Help]')
-	return input('s - Player stats ['+UNDERLINE+'check all the players stats'+ENDC+']\nt - Strength training ['+UNDERLINE+'upgrade strenght value'+ENDC+']\nb - Boss battle ['+UNDERLINE+'start a boss fight'+ENDC+']\nr - Rest ['+UNDERLINE+'restore stamina'+ENDC+']\nh - Help ['+UNDERLINE+'print menu with help'+ENDC+']\nq - Save and quit ['+UNDERLINE+'save progress and quit the game'+ENDC+']\nChoise: ')
+	print(get_menu('MENU [Help]',True))
+	#return input('s - Player stats ['+UNDERLINE+'check all the players stats'+ENDC+']\nt - Strength training ['+UNDERLINE+'upgrade strenght value'+ENDC+']\nb - Boss battle ['+UNDERLINE+'start a boss fight'+ENDC+']\nd - Dojo\nr - Rest ['+UNDERLINE+'restore stamina'+ENDC+']\nh - Help ['+UNDERLINE+'print menu with help'+ENDC+']\nq - Save and quit ['+UNDERLINE+'save progress and quit the game'+ENDC+']\nChoise: ')
 
 # Other functions -----------------------------------
 
@@ -203,7 +217,7 @@ def possible_choise(choise,choise_list,type_choise):
 
 def remove_menu():
 	'''Remove all the menu rows'''
-	n_rows = 9
+	n_rows = len(MENU)+2
 	print(ERASE*n_rows,end='\r')
 
 def read_csv_moveset(filename):
@@ -226,7 +240,8 @@ def replace_dmg(v):
 # ---------------------------------------------------
 
 if __name__ == '__main__':
-	p_stats = [1,0.1,0]
+	# INITIAL SETTINGS ------------------------------
+	p_stats = [1,1,0]
 	p_hp = 401
 	player = ['Mortafix',p_hp,1,p_stats,0]
 	enemies = read_csv_bosses('bosses.csv')
@@ -234,15 +249,17 @@ if __name__ == '__main__':
 	BOSS_MOVES = load_moveset('moveset_bosses.csv',player[4])
 	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
 	PARTIAL_MATRIX = load_vs_matrix(PLAYER_MOVES,BOSS_MOVES,VS_MATRIX)
-	menu = BOLD+UNDERLINE+'MENU'+ENDC+'\ns - Player stats\nt - Strength training\nb - Boss battle\nd - Dojo\nr - Rest\nh - Help\nq - Save and quit\nChoise: '
-	# MENU -----------------------------------
+	# MENU ------------------------------------------
 	while True:
-		m = input(menu)
-		while not possible_choise(m,['s','t','b','q','r','h','d'],str):
+		print(get_menu('MENU'))
+		m = input('choice: ')
+		while not possible_choise(m,[s for s,w,h in MENU],str):
 			remove_menu()
-			m = input(menu)
-		while m == 'h' or not possible_choise(m,['s','t','b','q','r','h','d'],str):
-			m = help()
+			print(get_menu('MENU'))
+			m = input('choice: ')
+		while m == 'h' or not possible_choise(m,[s for s,w,h in MENU],str):
+			help()
+			m = input('choice: ')
 		if m == 's':
 			stats(player)
 		elif m == 't':
