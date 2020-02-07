@@ -6,7 +6,7 @@ An inspired Sekiro game for Unix shell in Python3.
 * Learn different moves and counter attack improving your skill level.
 * Upgrade your strength and focus to rekt major boss with 2 different training.
 * Rest and find your inner peace to recharge your stamina.
-* Train with the dojo master to learn new moves.
+* Learn new moves in the dojo.
 
 ## Basic moveset
 * Your character is a little unleavened bread crumb, but he knows at least the basics.
@@ -14,4 +14,4 @@ An inspired Sekiro game for Unix shell in Python3.
 
 * With _Jump_ he can avoid _Swipe_ attack.
 * With _Dodge_ he can avoid _Grab_.
-* With _Attack_ he can make damage to a boss, when he’s doing _Nothing_.
+* With _Attack_ he can damage the boss, when he’s doing _Nothing_.
