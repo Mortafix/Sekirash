@@ -16,7 +16,7 @@ UNDERLINE = '\033[4m'
 ERASE = '\x1b[1A\x1b[2K'
 
 MENU = [('s','Player stats','check all the players stats'),
-		('t','Strength training','upgrade strenght value'),
+		('t','Strength training','upgrade strength value'),
 		('b','Boss battle','start a boss fight'),
 		('d','Dojo','learn the moveset'),
 		('r','Rest','restore stamina'),
@@ -35,14 +35,20 @@ def alarm_handler(signum,frame):
 	'''Raise a timeout error'''
 	raise ValueError
 
-def input_with_timeout(timeout,inkey):
+def input_with_timeout(timeout,inkey,single=True):
 	'''Input with timeout'''
 	signal.signal(signal.SIGALRM, alarm_handler)
 	signal.alarm(timeout)
 	try:
-		return inkey()
+		if single:
+			return inkey()
+		else:
+			ret = []
+			while True:
+				ret.append(inkey())
 	finally:
-		signal.alarm(0)
+		if single: signal.alarm(0)
+		else: return ''.join(ret)
 
 # Move functions ------------------------------------
 
@@ -71,8 +77,8 @@ def hp_bar(hp_total,hp_left):
 
 def versus_step(player,enemy,enemy_hp_left):
 	'''Printing: versus step'''
-	max_string = max(len(player[0]),len(enemy[0]))
-	return '{5}{0:<{4}}{6} {1}\n{5}{2:>{4}}{6} {3}'.format(player[0],hp_bar(player[1],player[2]),enemy[0],hp_bar(enemy[1],enemy_hp_left),max_string,BOLD,ENDC)
+	max_string = max(len(player['name']),len(enemy[0]))
+	return '{5}{0:<{4}}{6} {1}\n{5}{2:>{4}}{6} {3}'.format(player['name'],hp_bar(player['hp'],player['hp_left']),enemy[0],hp_bar(enemy[1],enemy_hp_left),max_string,BOLD,ENDC)
 
 def set_title(string):
 	'''Printing: action title'''
@@ -83,6 +89,16 @@ def get_menu(title,hlp=False):
 	print(set_title(title))
 	return '\n'.join(['{0} - {1} [{3}{2}{4}]'.format(s,w,h,UNDERLINE,ENDC) if hlp else '{} - {}'.format(s,w) for s,w,h in MENU])
 
+def can_do_action(player):
+	'''Check if alive and if enough stamina'''
+	if not is_alive(player):
+		print('Seems you\'re '+FAIL+'dead'+ENDC+' [check '+WARNING+'stats'+ENDC+']\nTo resurrect, you need to restore the HP ['+WARNING+'rest'+ENDC+']\n')
+		return False
+	elif not enough_stamina(player):
+		print('Seems you\'re out of '+FAIL+'stamina'+ENDC+' (0/3) [check '+WARNING+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+WARNING+'rest'+ENDC+']\n')
+		return False
+	else: return True
+
 # Actions functions --------------------------------
 
 def battle(player,enemy,fighters_moveset):
@@ -90,73 +106,78 @@ def battle(player,enemy,fighters_moveset):
 	remove_menu()
 	print(set_title('Boss battle')); sleep(1)
 
-	if player[3][2] == 0:
-		print('Seems you\'re out of '+FAIL+'stamina'+ENDC+' (0/3) [check '+WARNING+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+WARNING+'rest'+ENDC+']\n')
-		return -1
-	else: player[3][2] -= 1
+	if can_do_action(player):
 
-	inkey = _Getch()
-	print('A new Boss appeared..'); sleep(2); print(BOLD+FAIL+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
-	enemy_hp_left = enemy[2]
-	enemy_velocity = int(enemy[4] / 10000 * player[3][1])
-	while enemy_hp_left > 0 and player[2] > 0:
-		print(versus_step(player,enemy,enemy_hp_left))
-		bm = rand_move(enemy[5])
-		try:
-			sleep(random())
-			print('Enemy does',get_name(fighters_moveset,bm,1),end='\n')
-			pm = input_with_timeout(enemy_velocity,inkey)
-			if possible_move(fighters_moveset[0],pm):
-				dmg = damage_vs(fighters_moveset,pm,bm)
-			else:
+		inkey = _Getch()
+		print('A new Boss appeared..'); sleep(2); print(BOLD+FAIL+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
+		enemy_hp_left = enemy[2]
+		enemy_velocity = int(enemy[4] / 10000 * player['stats']['focus'])
+		while enemy_hp_left > 0 and player['hp_left'] > 0:
+			print(versus_step(player,enemy,enemy_hp_left))
+			bm = rand_move(enemy[5])
+			try:
+				sleep(random())
+				print('Enemy does',get_name(fighters_moveset,bm,1),end='\n')
+				pm = input_with_timeout(enemy_velocity,inkey)
+				if possible_move(fighters_moveset[0],pm):
+					dmg = damage_vs(fighters_moveset,pm,bm)
+				else:
+					dmg = damage_vs(fighters_moveset,'n',bm)
+			except ValueError:
 				dmg = damage_vs(fighters_moveset,'n',bm)
-		except ValueError:
-			dmg = damage_vs(fighters_moveset,'n',bm)
-		finally:
-			space_cancel=' '*15
-			if dmg == 1:
-				print('Boss takes '+OKGREEN+'DAMAGE'+ENDC+space_cancel)
-				enemy_hp_left -= player[3][0]
-			if dmg == -1:
-				print('Player takes '+FAIL+'DAMAGE'+ENDC+space_cancel)
-				player[2] -= enemy[3]
-			if dmg == 0:
-				print('Nothing happens..'+space_cancel)
-			sleep(1)
-			print(ERASE+ERASE+ERASE+ERASE,end='')
-	print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
-	if player[2] <= 0: print('Player dies...'); player[2] = 0
-	else: print(enemy[0],FAIL+'DEFEATED'+ENDC+'!!!') 
+			finally:
+				space_cancel=' '*15
+				if dmg == 1:
+					print('Boss takes '+OKGREEN+'DAMAGE'+ENDC+space_cancel)
+					enemy_hp_left -= player['stats']['strength']
+				if dmg == -1:
+					print('Player takes '+FAIL+'DAMAGE'+ENDC+space_cancel)
+					player['hp_left'] -= enemy[3]
+				if dmg == 0:
+					print('Nothing happens..'+space_cancel)
+				sleep(1)
+				print(ERASE+ERASE+ERASE+ERASE,end='')
+		print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
+		if player['hp_left'] <= 0: 
+			print('Player dies...\n'); player['hp_left'] = 0
+		else:
+			print(enemy[0],OKGREEN+'DEFEATED'+ENDC+'!!!')
+			player['level'] += 1
+			print('You reach level '+WARNING+str(player['level']+1)+ENDC+'!\n') 
+		player['stats']['stamina'] -= 1
 
 def strength_training(player):
-	'''Battle: improves strenght'''
+	'''Battle: improves strength'''
 	remove_menu()
-	print(set_title('Strength training')); sleep(1)
+	print(set_title('Strength training'))
 
-	if player[3][2] == 0:
-		print('Seems you\'re out of '+FAIL+'stamina'+ENDC+' (0/3) [check '+WARNING+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+WARNING+'rest'+ENDC+']\n')
-		return -1
-	else: player[3][2] -= 1
+	if can_do_action(player):
 
-	d = input('Choose the difficulty:\n1 - Easy\n2 - Medium\n3 - Hard\n4 - Extreme\nChoise: ')
-	while not possible_choise(d,range(1,4),int):
-		print(ERASE+ERASE+ERASE+ERASE+ERASE+ERASE,end='\r')
-		d = input('Choose the difficulty (from 1 to 4):\n1 - Easy\n2 - Medium\n3 - Hard\n4 - Extreme\nChoise: ')
-	l = input('Choose the lenght (from 1 to 10 seconds): ')
-	while not possible_choise(l,range(1,10),int):
-		print(ERASE,end='\r')
+		inkey = _Getch()
+		d = input('Choose the difficulty:\n1 - Easy\n2 - Medium\n3 - Hard\n4 - Extreme\nChoise: ')
+		while not possible_choise(d,range(1,4),int):
+			print(ERASE+ERASE+ERASE+ERASE+ERASE+ERASE,end='\r')
+			d = input('Choose the difficulty (from 1 to 4):\n1 - Easy\n2 - Medium\n3 - Hard\n4 - Extreme\nChoise: ')
 		l = input('Choose the lenght (from 1 to 10 seconds): ')
-	d,l = int(d),int(l)
-	pattern = 'a'*d+'s'*d
-	print(); print('Repeat the pattern',BOLD+WARNING+pattern.upper()+ENDC,'as fast and as long as you can for '+str(l)+' seconds and press ENTER'); input('When you\'re ready, press ENTER '); print('GO!')
-	try:
-		train = input_with_timeout('> ',l)
-		n = len(findall(pattern,train))
-		improves = n*2**(d+1)
-		print('\nPattern executed {1}{0}{2} times.'.format(n,WARNING,ENDC)); print('Strength upgrade: {0} -> {2}{1}{3}'.format(player[3][0],player[3][0]+improves,OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC);
-		player[3][0] += improves
-	except ValueError:
-		print(OKGREEN+'\nYou fool!'+ENDC+' (press ENTER before timeout)\n')
+		while not possible_choise(l,range(1,10),int):
+			print(ERASE,end='\r')
+			l = input('Choose the lenght (from 1 to 10 seconds): ')
+		d,l = int(d),int(l)
+		pattern = 'a'*d+'s'*d
+		print(); print('Repeat the pattern',BOLD+WARNING+pattern.upper()+ENDC,'as fast and as long as you can for '+str(l)+' seconds and press ENTER'); input('When you\'re ready, press ENTER '); print('GO!')
+		try:
+			train = input_with_timeout(l,inkey,False)
+			n = len(findall(pattern,train))
+			improves = n*2**(d+1)
+			print('\nPattern executed {1}{0}{2} times.[{3}]'.format(n,WARNING,ENDC,train)); print('Strength upgrade: {0} -> {2}{1}{3}'.format(player['stats']['strength'],player['stats']['strength']+improves,OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC);
+			player['stats']['strength'] += improves
+		except ValueError:
+			n = len(findall(pattern,train))
+			improves = n*2**(d+1)
+			print('\nPattern executed {1}{0}{2} times.[{3}]'.format(n,WARNING,ENDC,train)); print('Strength upgrade: {0} -> {2}{1}{3}'.format(player['stats']['strength'],player['stats']['strength']+improves,OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC);
+			player['stats']['strength'] += improves
+
+		player['stats']['stamina'] -= 1
 
 def dojo(moveset_p,moveset_b):
 	'''Dojo: train moveset'''
@@ -175,24 +196,35 @@ def dojo(moveset_p,moveset_b):
 def stats(player):
 	'''Print: stats'''
 	remove_menu()
-	print(set_title(player[0]+' stats'))
-	print('{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3}{12}\n{8:<11}{11}{10}{4}{12}\n{9:<11}{11}{10}{5}{12} / 3\n'.format(player[0],player[1],player[2],player[3][0],player[3][1],player[3][2],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE))
+	print(set_title(player['name']+' stats'))
+	print('{15:<11}{11}{10}{14}{12}\n{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3}{12}\n{8:<11}{11}{10}{4}{12}\n{9:<11}{11}{10}{5}{12} / 3\n'.format(player['name'],player['hp'],player['hp_left'],player['stats']['strength'],player['stats']['focus'],player['stats']['stamina'],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE,player['level']+1,'Level'))
 
 def rest(player):
 	'''Resting: TODO'''
 	remove_menu()
 	print(set_title('Resting'))
-	player[2] = player[1]
-	player[3][2] = 3
+	player['hp_left'] = player['hp']
+	player['stats']['stamina'] = 3
 	print(OKGREEN+'Rest completed!\n'+ENDC)
 
 def help():
 	'''Print: menu with help'''
 	remove_menu()
 	print(get_menu('MENU [Help]',True))
-	#return input('s - Player stats ['+UNDERLINE+'check all the players stats'+ENDC+']\nt - Strength training ['+UNDERLINE+'upgrade strenght value'+ENDC+']\nb - Boss battle ['+UNDERLINE+'start a boss fight'+ENDC+']\nd - Dojo\nr - Rest ['+UNDERLINE+'restore stamina'+ENDC+']\nh - Help ['+UNDERLINE+'print menu with help'+ENDC+']\nq - Save and quit ['+UNDERLINE+'save progress and quit the game'+ENDC+']\nChoise: ')
-
+	
 # Other functions -----------------------------------
+
+def new_movesets(level):
+	'''Reload movesets base on level'''
+	return load_moveset('moveset_player.csv',level),load_moveset('moveset_bosses.csv',level)
+
+def is_alive(player):
+	'''Check if alive'''
+	return player['hp_left'] > 0
+
+def enough_stamina(player):
+	'''Check enough stamina'''
+	return player['stats']['stamina'] > 0
 
 def load_moveset(filename,level):
 	'''Load moveset base on player level'''
@@ -233,6 +265,7 @@ def read_csv_bosses(filename):
 		return [(str(n),int(h),int(hl),int(d),int(v),str(m)) for n,h,hl,d,v,m in [row for row in csv_reader][1:]]
 
 def replace_dmg(v):
+	'''Symbol for dojo table'''
 	if v == 1: return OKGREEN+'O'+ENDC
 	elif v == -1: return FAIL+'X'+ENDC
 	else: return '-' 
@@ -241,12 +274,10 @@ def replace_dmg(v):
 
 if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
-	p_stats = [1,1,0]
-	p_hp = 401
-	player = ['Mortafix',p_hp,1,p_stats,0]
+	p_stats = {'strength':1,'focus':1,'stamina':0}
+	player = {'name':'Mortafix','level':0,'hp':401,'hp_left':1,'stats':p_stats}
 	enemies = read_csv_bosses('bosses.csv')
-	PLAYER_MOVES = load_moveset('moveset_player.csv',player[4])
-	BOSS_MOVES = load_moveset('moveset_bosses.csv',player[4])
+	PLAYER_MOVES,BOSS_MOVES = new_movesets(player['level'])
 	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
 	PARTIAL_MATRIX = load_vs_matrix(PLAYER_MOVES,BOSS_MOVES,VS_MATRIX)
 	# MENU ------------------------------------------
@@ -265,7 +296,7 @@ if __name__ == '__main__':
 		elif m == 't':
 			strength_training(player)
 		elif m == 'b':
-			battle(player,enemies[player[4]],FIGHTERS_MOVESET)
+			battle(player,enemies[player['level']],FIGHTERS_MOVESET)
 		elif m == 'r':
 			rest(player)
 		elif m == 'd':
