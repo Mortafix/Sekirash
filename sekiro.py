@@ -29,6 +29,8 @@ VS_MATRIX = [[0,-1,-1,-1],
 			 [1,-1,-1,-1],
 			 [0,-1,-1,1]]
 
+CSV_DIR = 'csv/'
+
 # Input functions -----------------------------------
 
 def alarm_handler(signum,frame):
@@ -215,7 +217,7 @@ def help():
 
 def new_movesets(level):
 	'''Reload movesets base on level'''
-	return load_moveset('moveset_player.csv',level),load_moveset('moveset_bosses.csv',level)
+	return load_moveset(CSV_DIR+'moveset_player.csv',level),load_moveset(CSV_DIR+'moveset_bosses.csv',level)
 
 def is_alive(player):
 	'''Check if alive'''
@@ -283,9 +285,9 @@ def replace_dmg(v):
 if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
 	p_stats = {'strength':1,'focus':1,'stamina':0}
-	max_stats = get_max_stats('stats.csv',0)
+	max_stats = get_max_stats(CSV_DIR'stats.csv',0)
 	player = {'name':'Mortafix','level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
-	enemies = read_csv_bosses('bosses.csv')
+	enemies = read_csv_bosses(CSV_DIR'bosses.csv')
 	PLAYER_MOVES,BOSS_MOVES = new_movesets(player['level'])
 	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
 	PARTIAL_MATRIX = load_vs_matrix(PLAYER_MOVES,BOSS_MOVES,VS_MATRIX)
