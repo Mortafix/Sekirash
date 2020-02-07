@@ -107,7 +107,7 @@ def battle(player,enemy,fighters_moveset):
 	print(set_title('Boss battle')); sleep(1)
 
 	if can_do_action(player):
-
+		
 		inkey = _Getch()
 		print('A new Boss appeared..'); sleep(2); print(BOLD+FAIL+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
 		enemy_hp_left = enemy[2]
@@ -153,31 +153,30 @@ def strength_training(player):
 
 	if can_do_action(player):
 
-		inkey = _Getch()
-		d = input('Choose the difficulty:\n1 - Easy\n2 - Medium\n3 - Hard\n4 - Extreme\nChoise: ')
-		while not possible_choise(d,range(1,4),int):
-			print(ERASE+ERASE+ERASE+ERASE+ERASE+ERASE,end='\r')
-			d = input('Choose the difficulty (from 1 to 4):\n1 - Easy\n2 - Medium\n3 - Hard\n4 - Extreme\nChoise: ')
-		l = input('Choose the lenght (from 1 to 10 seconds): ')
-		while not possible_choise(l,range(1,10),int):
-			print(ERASE,end='\r')
-			l = input('Choose the lenght (from 1 to 10 seconds): ')
-		d,l = int(d),int(l)
-		pattern = 'a'*d+'s'*d
-		print(); print('Repeat the pattern',BOLD+WARNING+pattern.upper()+ENDC,'as fast and as long as you can for '+str(l)+' seconds and press ENTER'); input('When you\'re ready, press ENTER '); print('GO!')
-		try:
-			train = input_with_timeout(l,inkey,False)
-			n = len(findall(pattern,train))
-			improves = n*2**(d+1)
-			print('\nPattern executed {1}{0}{2} times.[{3}]'.format(n,WARNING,ENDC,train)); print('Strength upgrade: {0} -> {2}{1}{3}'.format(player['stats']['strength'],player['stats']['strength']+improves,OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC);
-			player['stats']['strength'] += improves
-		except ValueError:
-			n = len(findall(pattern,train))
-			improves = n*2**(d+1)
-			print('\nPattern executed {1}{0}{2} times.[{3}]'.format(n,WARNING,ENDC,train)); print('Strength upgrade: {0} -> {2}{1}{3}'.format(player['stats']['strength'],player['stats']['strength']+improves,OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC);
-			player['stats']['strength'] += improves
+		if is_trainable(player,'strength'):
 
-		player['stats']['stamina'] -= 1
+			inkey = _Getch()
+			d = input('Choose the difficulty:\n1 - Easy\n2 - Hard\nChoise: ')
+			while not possible_choise(d,range(1,3),int):
+				print(ERASE+ERASE+ERASE+ERASE,end='\r')
+				d = input('Choose the difficulty (1 or 2):\n1 - Easy\n2 - Hard\nChoise: ')
+			d = int(d)
+			pattern = 'a'*(d+1)+'l'*(d+1)
+			print(); print('Repeat the pattern',BOLD+WARNING+pattern.upper()+ENDC,'as fast as you can for 5 seconds'); input('When you\'re ready, press ENTER '); print('GO!')
+			try:
+				train = input_with_timeout(5,inkey,False)
+			except ValueError: pass
+			
+			n = len(findall(pattern,train))
+			improve = n*2**(d+1) / 10 * d
+			print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,WARNING,ENDC,train)); print('Strength upgrade: {0} -> {2}{1}{3}'.format(player['stats']['strength'],player['stats']['strength']+improve,OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC);
+			new_value = player['stats']['strength'] + improve
+			player['stats']['strength'] = new_value if new_value < player['max_stats']['strength'] else player['max_stats']['strength']
+			player['stats']['stamina'] -= d
+
+		else:
+			print('You already reach the '+WARNING+'maximum'+ENDC+' value in '+WARNING+'strength'+ENDC+' for this level.\nIt\'s time to beat the boss!\n')
+
 
 def dojo(moveset_p,moveset_b):
 	'''Dojo: train moveset'''
@@ -197,7 +196,7 @@ def stats(player):
 	'''Print: stats'''
 	remove_menu()
 	print(set_title(player['name']+' stats'))
-	print('{15:<11}{11}{10}{14}{12}\n{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3}{12}\n{8:<11}{11}{10}{4}{12}\n{9:<11}{11}{10}{5}{12} / 3\n'.format(player['name'],player['hp'],player['hp_left'],player['stats']['strength'],player['stats']['focus'],player['stats']['stamina'],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE,player['level']+1,'Level'))
+	print('{15:<11}{11}{10}{14}{12}\n{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3}{12} / {17}\n{8:<11}{11}{10}{4}{12} / {18}\n{9:<11}{11}{10}{5}{12} / {16}\n'.format(player['name'],player['hp'],player['hp_left'],player['stats']['strength'],player['stats']['focus'],player['stats']['stamina'],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE,player['level']+1,'Level',player['max_stats']['stamina'],player['max_stats']['strength'],player['max_stats']['focus']))
 
 def rest(player):
 	'''Resting: TODO'''
@@ -225,6 +224,9 @@ def is_alive(player):
 def enough_stamina(player):
 	'''Check enough stamina'''
 	return player['stats']['stamina'] > 0
+
+def is_trainable(player,stats):
+	return player['stats'][stats] < player['max_stats'][stats]
 
 def load_moveset(filename,level):
 	'''Load moveset base on player level'''
@@ -264,6 +266,12 @@ def read_csv_bosses(filename):
 		csv_reader = csv.reader(csv_file, delimiter=',')
 		return [(str(n),int(h),int(hl),int(d),int(v),str(m)) for n,h,hl,d,v,m in [row for row in csv_reader][1:]]
 
+def get_max_stats(filename,level):
+	'''Read csv: max stats'''
+	with open(filename) as csv_file:
+		csv_reader = csv.reader(csv_file,delimiter=',')
+		return [{'strength':int(s),'focus':int(f),'stamina':int(t)} for s,f,t in [row for row in csv_reader][1:]][level]
+
 def replace_dmg(v):
 	'''Symbol for dojo table'''
 	if v == 1: return OKGREEN+'O'+ENDC
@@ -275,7 +283,8 @@ def replace_dmg(v):
 if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
 	p_stats = {'strength':1,'focus':1,'stamina':0}
-	player = {'name':'Mortafix','level':0,'hp':401,'hp_left':1,'stats':p_stats}
+	max_stats = get_max_stats('stats.csv',0)
+	player = {'name':'Mortafix','level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
 	enemies = read_csv_bosses('bosses.csv')
 	PLAYER_MOVES,BOSS_MOVES = new_movesets(player['level'])
 	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
