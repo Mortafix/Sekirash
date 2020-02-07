@@ -16,8 +16,9 @@ BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
 ERASE = '\x1b[1A\x1b[2K'
 
-MENU = [('s','Player stats','check all the players stats'),
-		('t','Strength training','upgrade strength value'),
+MENU = [('p','Player stats','check all the players stats'),
+		('s','Strength training','upgrade strength value'),
+		('f','Focus training','upgrade focus value'),
 		('b','Boss battle','start a boss fight'),
 		('d','Dojo','learn the moveset'),
 		('r','Rest','restore stamina'),
@@ -165,7 +166,7 @@ def battle(player,enemy,fighters_moveset):
 
 
 def strength_training(player):
-	'''Battle: improves strength'''
+	'''Training: improves strength'''
 	remove_menu()
 	print(set_title('Strength training'))
 
@@ -174,11 +175,7 @@ def strength_training(player):
 		if is_trainable(player,'strength'):
 
 			inkey = _Getch()
-			d = input('Choose the difficulty:\n1 - Easy\n2 - Hard\nChoise: ')
-			while not possible_choise(d,range(1,3),int):
-				print(ERASE+ERASE+ERASE+ERASE,end='\r')
-				d = input('Choose the difficulty (1 or 2):\n1 - Easy\n2 - Hard\nChoise: ')
-			d = int(d)
+			d = select_difficulty(inkey,[(1,'Easy'),(2,'Hard')])
 			pattern = 'a'*(d+1)+'l'*(d+1)
 			print(); print('Repeat the pattern',BOLD+WARNING+pattern.upper()+ENDC,'as fast as you can for 5 seconds'); input('When you\'re ready, press ENTER '); print('GO!')
 			try:
@@ -186,14 +183,38 @@ def strength_training(player):
 			except ValueError: pass
 			
 			n = len(findall(pattern,train))
-			improve = n*2**(d+1) / 10 * d
-			print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,WARNING,ENDC,train)); print('Strength upgrade: {0} -> {2}{1}{3}'.format(player['stats']['strength'],player['stats']['strength']+improve,OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC);
-			new_value = player['stats']['strength'] + improve
-			player['stats']['strength'] = new_value if new_value < player['max_stats']['strength'] else player['max_stats']['strength']
-			player['stats']['stamina'] -= d
+			improve = n*2**(d+1) / 7 * d
+			print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,WARNING,ENDC,train.upper()))
+			update_stats(player,'strength',improve)
+			player['stats']['stamina'] -= 1
 
-		else:
-			print('You already reach the '+WARNING+'maximum'+ENDC+' value in '+WARNING+'strength'+ENDC+' for this level.\nIt\'s time to beat the boss!\n')
+def focus_training(player):
+	'''Training: improves focus'''
+	remove_menu()
+	print(set_title('Focus training'))
+
+	if can_do_action(player):
+
+		if is_trainable(player,'focus'):
+
+			inkey = _Getch()
+			d = select_difficulty(inkey,[(1,'Easy'),(2,'Hard'),(3,'Insane')])
+			times = 5+((d-1)*2)
+			pattern = ''.join([chr(choice(range(97,123))) for _ in range(times)])
+			print('\n> 3',end='\r'); sleep(1); print('> 2',end='\r'); sleep(1); print('> 1',end='\r'); sleep(1); print('> GO!\n')
+			print('Insert the pattern',BOLD+WARNING+pattern.upper()+ENDC,'in the next 3 seconds!');
+			try:
+				train = input_with_timeout(3,inkey,False)
+			except ValueError: pass
+			
+			print('\n| {} |'.format(train.upper()))
+			if pattern == train:
+				improve = 2**d / 10
+				update_stats(player,'focus',improve)
+				player['stats']['stamina'] -= 1
+			else:
+				print('Fai schifo!')
+
 
 def dojo(movesets):
 	'''Dojo: train moveset'''
@@ -233,6 +254,24 @@ def help():
 	
 # Other functions -----------------------------------
 
+def select_difficulty(inkey,list_diff):
+	'''Menu: difficulty selector'''
+	print('Choose the difficulty:')
+	print('\n'.join(['{} - {}'.format(v,l) for v,l in list_diff]))
+	d = input('Choice: ')
+	while not possible_choice(d,range(1,len(list_diff)+1),int):
+		print(ERASE,end='\r')
+		d = input('Choice: ')
+	return int(d)
+
+def update_stats(player,stat,improve):
+	'''After complete a train upgrade stats'''
+	new_value = player['stats'][stat] + improve
+	old = player['stats'][stat]
+	player['stats'][stat] = new_value if new_value < player['max_stats'][stat] else player['max_stats'][stat]
+	print('Strength upgrade: {0:.2f} -> {2}{1:.2f}{3}'.format(old,player['stats'][stat],OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC)
+	
+
 def is_prefix(moveset,n,c):
 	'''Check if input is prefix of more complex move'''
 	return c in [x[:n+1] for x in moveset]
@@ -255,7 +294,10 @@ def enough_fast(player,enemy_velocity):
 
 def is_trainable(player,stats):
 	'''Check if stats is maxed'''
-	return player['stats'][stats] < player['max_stats'][stats]
+	if player['stats'][stats] < player['max_stats'][stats]: return 1
+	else: 
+		print('You already reach the '+WARNING+'maximum'+ENDC+' value in '+WARNING+stats+ENDC+' for this level.\nIt\'s time to beat the boss!\n')
+		return 0
 
 def load_moveset(filename,level):
 	'''Load moveset base on player level'''
@@ -270,11 +312,11 @@ def load_vs_matrix(movesets,total_matrix):
 	'''Get partial table'''
 	return [[x for x in row[:len(movesets[1])]] for row in total_matrix[:len(movesets[0])]]
 
-def possible_choise(choise,choise_list,type_choise):
+def possible_choice(choice,choice_list,type_choice):
 	'''Possible choice from menu'''
 	try:
-		c = type_choise(choise)
-		return c in choise_list
+		c = type_choice(choice)
+		return c in choice_list
 	except ValueError:
 		return False
 
@@ -314,9 +356,9 @@ def new_level(player):
 
 if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
-	p_stats = {'strength':40,'focus':1,'stamina':0}
+	p_stats = {'strength':1,'focus':1,'stamina':2}
 	max_stats = get_max_stats(CSV_DIR+'stats.csv',0)
-	player = {'name':'Mortafix','level':1,'hp':40001,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
+	player = {'name':'Mortafix','level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
 	enemies = read_csv_bosses(CSV_DIR+'bosses.csv')
 	PLAYER_MOVES,BOSS_MOVES = new_movesets(player['level'])
 	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
@@ -324,18 +366,20 @@ if __name__ == '__main__':
 	# MENU ------------------------------------------
 	while True:
 		print(get_menu('MENU'))
-		m = input('choice: ')
-		while not possible_choise(m,[s for s,w,h in MENU],str):
+		m = input('Choice: ')
+		while not possible_choice(m,[s for s,w,h in MENU],str):
 			remove_menu()
 			print(get_menu('MENU'))
-			m = input('choice: ')
-		while m == 'h' or not possible_choise(m,[s for s,w,h in MENU],str):
+			m = input('Choice: ')
+		while m == 'h' or not possible_choice(m,[s for s,w,h in MENU],str):
 			help()
-			m = input('choice: ')
-		if m == 's':
+			m = input('Choice: ')
+		if m == 'p':
 			stats(player)
-		elif m == 't':
+		elif m == 's':
 			strength_training(player)
+		elif m == 'f':
+			focus_training(player)
 		elif m == 'b':
 			win = battle(player,enemies[player['level']],FIGHTERS_MOVESET)
 			if win:
@@ -348,6 +392,3 @@ if __name__ == '__main__':
 		elif m == 'q':
 			print(WARNING+'Game saved.'+ENDC)
 			break
-
-	
-
