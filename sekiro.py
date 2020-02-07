@@ -4,6 +4,7 @@ from re import findall
 import signal
 import csv
 from getchar import _Getch
+from math import floor
 
 HEADER = '\033[95m'
 OKBLUE = '\033[94m'
@@ -37,20 +38,24 @@ def alarm_handler(signum,frame):
 	'''Raise a timeout error'''
 	raise ValueError
 
-def input_with_timeout(timeout,inkey,single=True):
+def input_with_timeout(timeout,inkey,single=True,moveset=None):
 	'''Input with timeout'''
 	signal.signal(signal.SIGALRM, alarm_handler)
 	signal.alarm(timeout)
 	try:
 		if single:
-			return inkey()
+			c,n = inkey(),0
+			while is_prefix(moveset,n,c):
+				if c in moveset: return c
+				c += inkey()
+				n += 1
 		else:
 			ret = []
 			while True:
 				ret.append(inkey())
 	finally:
-		if single: signal.alarm(0)
-		else: return ''.join(ret)
+		signal.alarm(0)
+		if not single: return ''.join(ret)
 
 # Move functions ------------------------------------
 
@@ -109,44 +114,55 @@ def battle(player,enemy,fighters_moveset):
 	print(set_title('Boss battle')); sleep(1)
 
 	if can_do_action(player):
-		
-		inkey = _Getch()
-		print('A new Boss appeared..'); sleep(2); print(BOLD+FAIL+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
-		enemy_hp_left = enemy[2]
-		enemy_velocity = int(enemy[4] / 10000 * player['stats']['focus'])
-		while enemy_hp_left > 0 and player['hp_left'] > 0:
-			print(versus_step(player,enemy,enemy_hp_left))
-			bm = rand_move(enemy[5])
-			try:
-				sleep(random())
-				print('Enemy does',get_name(fighters_moveset,bm,1),end='\n')
-				pm = input_with_timeout(enemy_velocity,inkey)
-				if possible_move(fighters_moveset[0],pm):
-					dmg = damage_vs(fighters_moveset,pm,bm)
-				else:
+
+		if enough_fast(player,enemy[4]):
+
+			inkey = _Getch()
+			print('A new Boss appeared..'); sleep(2); print(BOLD+FAIL+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
+			enemy_hp_left = enemy[2]
+			enemy_velocity = int(floor(player['stats']['focus']) - enemy[4] + 1)
+			while enemy_hp_left > 0 and player['hp_left'] > 0:
+				print(versus_step(player,enemy,enemy_hp_left))
+				bm = rand_move(enemy[5])
+				try:
+					sleep(random())
+					print('Enemy does',get_name(fighters_moveset,bm,1),end='\n')
+					pm = input_with_timeout(enemy_velocity,inkey,moveset=get_shortcut(fighters_moveset[0]))
+					if possible_move(fighters_moveset[0],pm):
+						dmg = damage_vs(fighters_moveset,pm,bm)
+					else:
+						dmg = damage_vs(fighters_moveset,'n',bm)
+				except ValueError:
 					dmg = damage_vs(fighters_moveset,'n',bm)
-			except ValueError:
-				dmg = damage_vs(fighters_moveset,'n',bm)
-			finally:
-				space_cancel=' '*15
-				if dmg == 1:
-					print('Boss takes '+OKGREEN+'DAMAGE'+ENDC+space_cancel)
-					enemy_hp_left -= player['stats']['strength']
-				if dmg == -1:
-					print('Player takes '+FAIL+'DAMAGE'+ENDC+space_cancel)
-					player['hp_left'] -= enemy[3]
-				if dmg == 0:
-					print('Nothing happens..'+space_cancel)
-				sleep(1)
-				print(ERASE+ERASE+ERASE+ERASE,end='')
-		print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
-		if player['hp_left'] <= 0: 
-			print('Player dies...\n'); player['hp_left'] = 0
+				finally:
+					space_cancel=' '*15
+					if dmg == 1:
+						print('Boss takes '+OKGREEN+'DAMAGE'+ENDC+space_cancel)
+						enemy_hp_left -= player['stats']['strength']
+					if dmg == -1:
+						print('Player takes '+FAIL+'DAMAGE'+ENDC+space_cancel)
+						player['hp_left'] -= enemy[3]
+					if dmg == 0:
+						print('Nothing happens..'+space_cancel)
+					sleep(1)
+					print(ERASE+ERASE+ERASE+ERASE,end='')
+			print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
+			if player['hp_left'] <= 0: 
+				print('Player dies...\n'); player['hp_left'] = 0
+				return 0
+			else:
+				print(enemy[0],OKGREEN+'DEFEATED'+ENDC+'!!!')
+				player['level'] += 1
+				print('You reach level '+WARNING+str(player['level']+1)+ENDC+'!\n') 
+				player['stats']['stamina'] -= 1
+				return 1
 		else:
-			print(enemy[0],OKGREEN+'DEFEATED'+ENDC+'!!!')
-			player['level'] += 1
-			print('You reach level '+WARNING+str(player['level']+1)+ENDC+'!\n') 
-		player['stats']['stamina'] -= 1
+			print('You\'ll die instantly, be careful!')
+			print('You don\'t have enough focus to counter this Boss\' velocity ['+WARNING+'train focus'+ENDC+']\n')
+			return 0
+	
+	else: return 0
+
 
 def strength_training(player):
 	'''Battle: improves strength'''
@@ -179,9 +195,9 @@ def strength_training(player):
 		else:
 			print('You already reach the '+WARNING+'maximum'+ENDC+' value in '+WARNING+'strength'+ENDC+' for this level.\nIt\'s time to beat the boss!\n')
 
-
-def dojo(moveset_p,moveset_b):
+def dojo(movesets):
 	'''Dojo: train moveset'''
+	moveset_p,moveset_b = movesets[0],movesets[1]
 	remove_menu()
 	print(set_title('Dojo'))
 	print(WARNING+'Player moveset'+ENDC)
@@ -198,7 +214,7 @@ def stats(player):
 	'''Print: stats'''
 	remove_menu()
 	print(set_title(player['name']+' stats'))
-	print('{15:<11}{11}{10}{14}{12}\n{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3}{12} / {17}\n{8:<11}{11}{10}{4}{12} / {18}\n{9:<11}{11}{10}{5}{12} / {16}\n'.format(player['name'],player['hp'],player['hp_left'],player['stats']['strength'],player['stats']['focus'],player['stats']['stamina'],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE,player['level']+1,'Level',player['max_stats']['stamina'],player['max_stats']['strength'],player['max_stats']['focus']))
+	print('{15:<11}{11}{10}{14}{12}\n{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3:.2f}{12} / {17}\n{8:<11}{11}{10}{4:.2f}{12} / {18}\n{9:<11}{11}{10}{5}{12} / {16}\n'.format(player['name'],player['hp'],player['hp_left'],player['stats']['strength'],player['stats']['focus'],player['stats']['stamina'],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE,player['level']+1,'Level',player['max_stats']['stamina'],player['max_stats']['strength'],player['max_stats']['focus']))
 
 def rest(player):
 	'''Resting: TODO'''
@@ -206,6 +222,8 @@ def rest(player):
 	print(set_title('Resting'))
 	player['hp_left'] = player['hp']
 	player['stats']['stamina'] = 3
+	player['stats']['strength'] *= 0.95
+	player['stats']['focus'] *= 0.95
 	print(OKGREEN+'Rest completed!\n'+ENDC)
 
 def help():
@@ -214,6 +232,10 @@ def help():
 	print(get_menu('MENU [Help]',True))
 	
 # Other functions -----------------------------------
+
+def is_prefix(moveset,n,c):
+	'''Check if input is prefix of more complex move'''
+	return c in [x[:n+1] for x in moveset]
 
 def new_movesets(level):
 	'''Reload movesets base on level'''
@@ -224,10 +246,15 @@ def is_alive(player):
 	return player['hp_left'] > 0
 
 def enough_stamina(player):
-	'''Check enough stamina'''
+	'''Check if enough stamina'''
 	return player['stats']['stamina'] > 0
 
+def enough_fast(player,enemy_velocity):
+	'''Check if enough focus'''
+	return player['stats']['focus'] > enemy_velocity
+
 def is_trainable(player,stats):
+	'''Check if stats is maxed'''
 	return player['stats'][stats] < player['max_stats'][stats]
 
 def load_moveset(filename,level):
@@ -239,9 +266,9 @@ def get_shortcut(moveset):
 	'''Return list with actions shortcut'''
 	return [s for s,n in moveset]
 
-def load_vs_matrix(moveset_player,moveset_boss,total_matrix):
+def load_vs_matrix(movesets,total_matrix):
 	'''Get partial table'''
-	return [[x for x in row[:len(moveset_boss)]] for row in total_matrix[:len(moveset_player)]]
+	return [[x for x in row[:len(movesets[1])]] for row in total_matrix[:len(movesets[0])]]
 
 def possible_choise(choise,choise_list,type_choise):
 	'''Possible choice from menu'''
@@ -280,17 +307,20 @@ def replace_dmg(v):
 	elif v == -1: return FAIL+'X'+ENDC
 	else: return '-' 
 
+def new_level(player):
+	return get_max_stats(CSV_DIR+'stats.csv',player['level']),new_movesets(player['level'])
+
 # ---------------------------------------------------
 
 if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
-	p_stats = {'strength':1,'focus':1,'stamina':0}
-	max_stats = get_max_stats(CSV_DIR'stats.csv',0)
-	player = {'name':'Mortafix','level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
-	enemies = read_csv_bosses(CSV_DIR'bosses.csv')
+	p_stats = {'strength':40,'focus':1,'stamina':0}
+	max_stats = get_max_stats(CSV_DIR+'stats.csv',0)
+	player = {'name':'Mortafix','level':1,'hp':40001,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
+	enemies = read_csv_bosses(CSV_DIR+'bosses.csv')
 	PLAYER_MOVES,BOSS_MOVES = new_movesets(player['level'])
 	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
-	PARTIAL_MATRIX = load_vs_matrix(PLAYER_MOVES,BOSS_MOVES,VS_MATRIX)
+	PARTIAL_MATRIX = load_vs_matrix(FIGHTERS_MOVESET,VS_MATRIX)
 	# MENU ------------------------------------------
 	while True:
 		print(get_menu('MENU'))
@@ -307,11 +337,14 @@ if __name__ == '__main__':
 		elif m == 't':
 			strength_training(player)
 		elif m == 'b':
-			battle(player,enemies[player['level']],FIGHTERS_MOVESET)
+			win = battle(player,enemies[player['level']],FIGHTERS_MOVESET)
+			if win:
+				player['max_stats'],FIGHTERS_MOVESET = new_level(player)
+				PARTIAL_MATRIX = load_vs_matrix(FIGHTERS_MOVESET,VS_MATRIX)
 		elif m == 'r':
 			rest(player)
 		elif m == 'd':
-			dojo(PLAYER_MOVES,BOSS_MOVES)
+			dojo(FIGHTERS_MOVESET)
 		elif m == 'q':
 			print(WARNING+'Game saved.'+ENDC)
 			break
