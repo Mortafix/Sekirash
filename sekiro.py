@@ -1,10 +1,12 @@
-from time import sleep
+from time import sleep,time
 from random import choice,random
 from re import findall
 import signal
 import csv
 from getchar import _Getch
 from math import floor
+import boto3
+import decimal
 
 HEADER = '\033[95m'
 OKBLUE = '\033[94m'
@@ -352,18 +354,98 @@ def replace_dmg(v):
 def new_level(player):
 	return get_max_stats(CSV_DIR+'stats.csv',player['level']),new_movesets(player['level'])
 
+# DB Functions --------------------------------------
+
+def db_connecting(table='sekirash'):
+	'''Connecting to DB [specify table]'''
+	return boto3.resource('dynamodb', region_name='eu-west-1').Table(table)
+
+def get_last_id(db):
+	'''Getting last ID'''
+	return db.item_count + int(str(int(time()))[4:])
+
+def new_player(db,usr):
+	'''Creating new player on db'''
+	pid = get_last_id(db)
+	p_stats = {'strength':1,'focus':1,'stamina':2}
+	max_stats = get_max_stats(CSV_DIR+'stats.csv',0)
+	new_player = {'player_id':pid,'name':usr,'level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
+	db.put_item(Item=new_player)
+	return db.get_item(Key={'player_id':pid})['Item']
+
+def login(db,player_id,username,erase=2):
+	'''Collect saved data on db'''
+	try:
+		player = db.get_item(Key={'player_id':int(player_id)})
+		if player.get('Item'):
+			if player['Item']['name'] == username:
+				return replace_decimals(player['Item'],False)
+			else:
+				print(ERASE*erase,end='\r')
+				print('Player ID [{2}{0}{3}] and username [{2}{1}{3}] doesn\'t match, try again.'.format(player_id,username,WARNING,ENDC))
+				return None
+		else:
+			print(ERASE*erase,end='\r')
+			print('Player ID [{1}{0}{2}] doesn\'t exists, try again.'.format(player_id,WARNING,ENDC))
+			return None
+	except ValueError:
+		print(ERASE*erase,end='\r')
+		print('Player_ID [{1}{0}{2}] must be a numeric code'.format(player_id,WARNING,ENDC))
+
+def update_db(db,player):
+	'''Overwrite data on db'''
+	player = replace_decimals(player,True)
+	return db.put_item(Item=player)
+
+def replace_decimals(obj,reverse):
+	'''Convert all number in decimal for db and reverse'''
+	if isinstance(obj, list):
+		for i,v in enumerate(obj): obj[i] = replace_decimals(v,reverse)
+		return obj
+	elif isinstance(obj, dict):
+		for k in obj.keys(): obj[k] = replace_decimals(obj[k],reverse)
+		return obj
+	elif not reverse and isinstance(obj, decimal.Decimal):
+		if obj % 1 == 0: return int(obj)
+		else: return float(obj)
+	elif reverse and (isinstance(obj,float) or isinstance(obj,int)):
+		return decimal.Decimal(str(obj))
+	else: return obj
+
 # ---------------------------------------------------
 
 if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
-	p_stats = {'strength':1,'focus':1,'stamina':2}
-	max_stats = get_max_stats(CSV_DIR+'stats.csv',0)
-	player = {'name':'Mortafix','level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
+	db = db_connecting()
+	print(set_title('SEKIRASH'))
+	retry = False
+	while True:
+		if not retry:
+			yn = input('First time here? [y/n]: ')
+			while not possible_choice(yn,['y','n'],str):
+				print(ERASE,end='\r')
+				yn = input('First time here? [y/n]: ')
+		else: yn = 'n'
+		if yn == 'y':
+			print(ERASE*2,end='\r')
+			print('Welcome on {}SEKIRASH{}!'.format(UNDERLINE,ENDC))
+			usr = input('What\'s your name? ')
+			player = new_player(db,usr)
+			print('New profile created.\nHi {2}{0}{3}, your player ID is {2}{1}{3}, don\'t forget it next time you log in!\n'.format(player['name'],player['player_id'],WARNING,ENDC))
+			break
+		else:
+			pid = input('Player_ID: ')
+			usr = input('Username: ')
+			if not retry: player = login(db,pid,usr)
+			else: player = login(db,pid,usr,3) 
+			if player: print('Welcome back {1}{0}{2}!\n'.format(player['name'],WARNING,ENDC)); break 
+			else: retry = True
+	# SET UP BOSS AND MOVESET -----------------------
 	enemies = read_csv_bosses(CSV_DIR+'bosses.csv')
 	PLAYER_MOVES,BOSS_MOVES = new_movesets(player['level'])
 	FIGHTERS_MOVESET = [PLAYER_MOVES,BOSS_MOVES]
 	PARTIAL_MATRIX = load_vs_matrix(FIGHTERS_MOVESET,VS_MATRIX)
-	# MENU ------------------------------------------
+	# GAME ------------------------------------------
 	while True:
 		print(get_menu('MENU'))
 		m = input('Choice: ')
@@ -390,5 +472,6 @@ if __name__ == '__main__':
 		elif m == 'd':
 			dojo(FIGHTERS_MOVESET)
 		elif m == 'q':
+			update_db(db,player)
 			print(WARNING+'Game saved.'+ENDC)
 			break
