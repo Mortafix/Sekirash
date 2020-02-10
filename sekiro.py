@@ -1,6 +1,6 @@
 from time import sleep,time
 from random import choice,random
-from re import findall
+from re import findall,sub
 import signal
 import csv
 from getchar import _Getch
@@ -9,6 +9,7 @@ import pickle
 import decimal
 
 SAVE_FILE = 'player.save'
+CSV_DIR = 'csv/'
 
 PURPLE = '\033[95m'
 BLUE = '\033[94m'
@@ -35,8 +36,6 @@ VS_MATRIX = [[0,-1,-1,-1],
 			 [1,-1,-1,-1],
 			 [0,-1,-1,1]]
 
-CSV_DIR = 'csv/'
-
 # Input functions -----------------------------------
 
 def alarm_handler(signum,frame):
@@ -49,11 +48,14 @@ def input_with_timeout(timeout,inkey,single=True,moveset=None):
 	signal.alarm(timeout)
 	try:
 		if single:
-			c,n = inkey(),0
-			while is_prefix(moveset,n,c):
-				if c in moveset: return c
-				c += inkey()
-				n += 1
+			if moveset:	
+				c,n = inkey(),0
+				while is_prefix(moveset,n,c):
+					if c in moveset: return c
+					c += inkey()
+					n += 1
+			else:
+				return inkey()
 		else:
 			ret = []
 			while True:
@@ -82,10 +84,11 @@ def get_name(fighters,move,who):
 	'''Printing: move name'''
 	return [n for s,n in fighters[who] if s == move][0]
  
-def hp_bar(hp_total,hp_left):
+def hp_bar(hp_total,hp_left,alive=BLUE,dead=RED,reverse=False):
 	'''Printing: HP bar'''
-	if hp_left <= 0: return '['+BOLD+RED+'XXXXXXXXXXXXXXX'+ENDC+']'+' {:.1f} %'.format(0)
-	else: return '['+BOLD+BLUE+''.join(['#' if x < round(hp_left * 15 / hp_total) else ENDC+'_' for x in range(15)])+ENDC+']'+' {:.1f} %'.format(hp_left/hp_total*100)
+	if reverse and hp_left < 0: return '[{2}{3}{0}{4}] {1:.1f} %'.format(''.join(['X' if x < round((hp_total + hp_left) * 15 / hp_total) else ENDC+'_' for x in range(15)]), hp_left/hp_total * 100,dead,BOLD,ENDC)
+	elif hp_left <= 0: return '[{2}{1}XXXXXXXXXXXXXXX{3}] {0:.1f} %'.format(0,dead,BOLD,ENDC)
+	else: return '[{2}{3}{0}{4}] {1:.1f} %'.format(''.join(['#' if x < round(hp_left * 15 / hp_total) else ENDC+'_' for x in range(15)]), hp_left/hp_total * 100,alive,BOLD,ENDC)
 
 def versus_step(player,enemy,enemy_hp_left):
 	'''Printing: versus step'''
@@ -107,7 +110,7 @@ def can_do_action(player):
 		print('Seems you\'re '+RED+'dead'+ENDC+' [check '+YELLOW+'stats'+ENDC+']\nTo resurrect, you need to restore the HP ['+YELLOW+'rest'+ENDC+']\n')
 		return False
 	elif not enough_stamina(player):
-		print('Seems you\'re out of '+RED+'stamina'+ENDC+' (0/3) [check '+YELLOW+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+YELLOW+'rest'+ENDC+']\n')
+		print('Seems you\'re out of {1}stamina{3} (0/{0}) [check {2}stats{3}]\nBefore doing stuff, you need to restore the stamina [{2}rest{3}]\n'.format(player['max_stats']['stamina'],RED,YELLOW,ENDC))
 		return False
 	else: return True
 
@@ -118,7 +121,7 @@ def battle(player,enemy,fighters_moveset):
 	remove_menu()
 	print(set_title('Boss battle')); sleep(1)
 
-	if can_do_action(player):
+	if is_undead(player) or can_do_action(player):
 
 		if enough_fast(player,enemy[4]):
 
@@ -154,16 +157,17 @@ def battle(player,enemy,fighters_moveset):
 			print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
 			if player['hp_left'] <= 0: 
 				print('Player dies...\n'); player['hp_left'] = 0
+				player['stats']['stamina'] = 0
 				return 0
 			else:
-				print(enemy[0],GREEN+'DEFEATED'+ENDC+'!!!')
+				print(enemy[0],GREEN+'DEFEATED'+ENDC+'!!!'); sleep(1)
 				player['level'] += 1
 				print('You reach level '+YELLOW+str(player['level']+1)+ENDC+'!\n') 
-				player['stats']['stamina'] -= 1
+				player['stats']['stamina'] = 0
 				return 1
 		else:
 			print('You\'ll die instantly, be careful!')
-			print('You don\'t have enough focus to counter this Boss\' velocity ['+YELLOW+'train focus'+ENDC+']\n')
+			print('You don\'t have enough focus to counter this Boss\' velocity [{2}{0}{3}] [{1}train focus{3}]\n'.format(enemy[4],YELLOW,BLUE,ENDC))
 			return 0
 	
 	else: return 0
@@ -174,51 +178,56 @@ def strength_training(player):
 	remove_menu()
 	print(set_title('Strength training'))
 
-	if can_do_action(player):
+	if not is_undead(player):
 
-		if is_trainable(player,'strength'):
+		if can_do_action(player):
 
-			inkey = _Getch()
-			d = select_difficulty(inkey,[(1,'Easy'),(2,'Hard')])
-			pattern = 'a'*(d+1)+'l'*(d+1)
-			print(); print('Repeat the pattern',BOLD+YELLOW+pattern.upper()+ENDC,'as fast as you can for 5 seconds'); input('When you\'re ready, press ENTER '); print('GO!')
-			try:
-				train = input_with_timeout(5,inkey,False)
-			except ValueError: pass
-			
-			n = len(findall(pattern,train))
-			improve = n*2**(d+1) / 7 * d
-			print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,YELLOW,ENDC,train.upper()))
-			update_stats(player,'strength',improve)
-			player['stats']['stamina'] -= 1
+			if is_trainable(player,'strength'):
+
+				inkey = _Getch()
+				d = select_difficulty(inkey,[(1,'Easy'),(2,'Hard')])
+				pattern = 'a'*(d+1)+'l'*(d+1)
+				print(); print('Repeat the pattern',BOLD+YELLOW+pattern.upper()+ENDC,'as fast as you can for 5 seconds'); input('When you\'re ready, press ENTER '); print('GO!')
+				try:
+					train = input_with_timeout(5,inkey,False)
+				except ValueError: pass
+				
+				n = len(findall(pattern,train))
+				improve = n*2**(d+1) / 7 * d
+				print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,YELLOW,ENDC,train.upper()))
+				update_stats(player,'strength',improve)
+				player['stats']['stamina'] -= 1
+	else: 
+		print('As {}undead{} you can\'t strength training!\n'.format(RED,ENDC))
 
 def focus_training(player):
 	'''Training: improves focus'''
 	remove_menu()
 	print(set_title('Focus training'))
 
-	if can_do_action(player):
+	if is_undead(player) or can_do_action(player):
 
 		if is_trainable(player,'focus'):
 
+			seconds = 3
+			if is_undead(player): seconds += 2
 			inkey = _Getch()
 			d = select_difficulty(inkey,[(1,'Easy'),(2,'Hard'),(3,'Insane')])
-			times = 5+((d-1)*2)
+			times = 4+((d-1)*2)
 			pattern = ''.join([chr(choice(range(97,123))) for _ in range(times)])
 			print('\n> 3',end='\r'); sleep(1); print('> 2',end='\r'); sleep(1); print('> 1',end='\r'); sleep(1); print('> GO!\n')
-			print('Insert the pattern',BOLD+YELLOW+pattern.upper()+ENDC,'in the next 3 seconds!');
+			print('Insert the pattern {2}{3}{0}{4} in the next {1} seconds!'.format(pattern.upper(),seconds,YELLOW,BOLD,ENDC));
 			try:
-				train = input_with_timeout(3,inkey,False)
+				train = input_with_timeout(seconds,inkey,False)
 			except ValueError: pass
 			
 			print('\n| {} |'.format(train.upper()))
 			if pattern == train:
 				improve = 2**d / 10
 				update_stats(player,'focus',improve)
-				player['stats']['stamina'] -= 1
 			else:
-				print('Fai schifo!')
-
+				print('The patterns don\'t match, {}no improvements{} this time.\n'.format(RED,ENDC))
+			if not is_undead(player): player['stats']['stamina'] -= 1
 
 def dojo(movesets):
 	'''Dojo: train moveset'''
@@ -245,11 +254,69 @@ def rest(player):
 	'''Resting: TODO'''
 	remove_menu()
 	print(set_title('Resting'))
-	player['hp_left'] = player['hp']
-	player['stats']['stamina'] = 3
-	player['stats']['strength'] *= 0.95
-	player['stats']['focus'] *= 0.95
-	print(GREEN+'Rest completed!\n'+ENDC)
+
+	if not is_undead(player):
+
+		if player['stats']['stamina'] < player['max_stats']['stamina']:
+			print('Guide your soul to the {}mortal path{}, if you want to live again.'.format(YELLOW,ENDC)); sleep(1)
+			hp_max,restoring = player['hp'],0
+			step = hp_max/10
+			inkey = _Getch()
+			while abs(restoring) < hp_max:
+				print(hp_bar(hp_max,restoring,reverse=True))
+				m_path = chr(choice(range(97,123)))
+				u_path = chr(choice(range(97,123)))
+				while u_path == m_path:
+					u_path = chr(choice(range(97,123)))
+				print('Mortal path > {1}{0}{2}'.format(m_path.upper(),GREEN,ENDC))
+				try:
+					c = input_with_timeout(3,inkey)
+				except ValueError:
+					try:
+						print(ERASE,end='\r')
+						print('Undead path > {1}{0}{2}'.format(u_path.upper(),RED,ENDC))
+						c = input_with_timeout(1,inkey)
+					except ValueError:
+						c = '-'
+				finally:
+					if c == m_path: restoring += step
+					elif c == u_path: restoring -= step
+				print(ERASE*2,end='\r')
+			if restoring < 0:
+				print(ERASE,end='\r')
+				print('You follow the {}UNDEAD{} path..'.format(RED,ENDC)); sleep(1)
+				player['name'] += ' The UNDEAD'
+				print('HP: {0} -> {2}{1}{3}'.format(player['hp_left'],1,RED,ENDC))
+				print('Strength: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['strength'],player['max_stats']['strength'] * 2.5,GREEN,ENDC))	
+				print('Focus: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['focus'],player['stats']['focus'] * 0.4,RED,ENDC))
+				print('Stamina: {0} -> {2}{1}{3}'.format(player['stats']['stamina'],-666,PURPLE,ENDC))
+				player['hp_left'] = 1
+				player['stats']['stamina'] = -666
+				player['saved_undead'] = player['stats']['strength']
+				player['stats']['strength'] = player['max_stats']['strength'] * 2.5
+				player['stats']['focus'] *= 0.4
+				print('Rest {}complete{}!\n'.format(YELLOW,ENDC))
+			else:
+				print(ERASE,end='\r')
+				print('HP: {0} -> {2}{1}{3}'.format(player['hp_left'],player['hp'],GREEN,ENDC))	
+				player['hp_left'] = player['hp']
+				player['stats']['stamina'] = player['max_stats']['stamina']
+				if player['saved_undead'] == 0:
+					print('Strength: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['strength'],player['stats']['strength'] * 0.90,RED,ENDC))
+					player['stats']['strength'] *= 0.90
+				else:
+					player['name'] = sub(' The UNDEAD','',player['name'])
+					print('Strength: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['strength'],player['saved_undead'],RED,ENDC))
+					player['stats']['strength'] = player['saved_undead']
+					player['saved_undead'] = 0
+				print('Focus: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['focus'],player['stats']['focus'] * 0.95,RED,ENDC))
+				print('Stamina: {0} -> {2}{1}{3}'.format(player['stats']['stamina'],player['max_stats']['stamina'],GREEN,ENDC))
+				player['stats']['focus'] *= 0.95
+				print('Rest {}complete{}!\n'.format(YELLOW,ENDC))
+		else:
+			print('You\'re are {}full{} of stamina, you can\'t rest right now!\n'.format(RED,ENDC))
+	else:
+		print('As {}undead{} you can\'t rest!\n'.format(RED,ENDC))
 
 def help():
 	'''Print: menu with help'''
@@ -273,7 +340,7 @@ def update_stats(player,stat,improve):
 	new_value = player['stats'][stat] + improve
 	old = player['stats'][stat]
 	player['stats'][stat] = new_value if new_value < player['max_stats'][stat] else player['max_stats'][stat]
-	print('Strength upgrade: {0:.2f} -> {2}{1:.2f}{3}'.format(old,player['stats'][stat],GREEN,ENDC)); print(GREEN+'Training complete!\n'+ENDC)
+	print('{4} upgrade: {0:.2f} -> {2}{1:.2f}{3}'.format(old,player['stats'][stat],GREEN,ENDC,stat.capitalize())); print('Training {}complete{}!\n'.format(YELLOW,ENDC))
 	
 
 def is_prefix(moveset,n,c):
@@ -288,19 +355,23 @@ def is_alive(player):
 	'''Check if alive'''
 	return player['hp_left'] > 0
 
+def is_undead(player):
+	'''Check id undead'''
+	return player['stats']['stamina'] < 0
+
 def enough_stamina(player):
 	'''Check if enough stamina'''
 	return player['stats']['stamina'] > 0
 
 def enough_fast(player,enemy_velocity):
 	'''Check if enough focus'''
-	return player['stats']['focus'] > enemy_velocity
+	return player['stats']['focus'] >= enemy_velocity
 
 def is_trainable(player,stats):
 	'''Check if stats is maxed'''
 	if player['stats'][stats] < player['max_stats'][stats]: return 1
 	else: 
-		print('You already reach the '+YELLOW+'maximum'+ENDC+' value in '+YELLOW+stats+ENDC+' for this level.\nIt\'s time to beat the boss!\n')
+		print('You already reach the '+YELLOW+'maximum'+ENDC+' value in '+YELLOW+stats+ENDC+' for this level.\n')
 		return 0
 
 def load_moveset(filename,level):
@@ -354,6 +425,7 @@ def replace_dmg(v):
 	else: return '-' 
 
 def new_level(player):
+	'''Update max_stats and new moveset base on new level reached'''
 	return get_max_stats(CSV_DIR+'stats.csv',player['level']),new_movesets(player['level'])
 
 # Save / Load Functions --------------------------------------
@@ -376,7 +448,7 @@ def new_player(usr):
 	'''Creating new player'''
 	p_stats = {'strength':1,'focus':1,'stamina':2}
 	max_stats = get_max_stats(CSV_DIR+'stats.csv',0)
-	player = {'name':usr,'level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats}
+	player = {'name':usr,'level':0,'hp':401,'hp_left':1,'stats':p_stats,'max_stats':max_stats,'saved_undead':0}
 	save_data(player)
 	return player
 
