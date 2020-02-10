@@ -143,13 +143,14 @@ def battle(player,enemy,fighters_moveset):
 				except ValueError:
 					dmg = damage_vs(fighters_moveset,'n',bm)
 				finally:
-					space_cancel=' '*15
+					space_cancel=' '*30
+					critic = 1.5 if random() < 0.15 else 1
 					if dmg == 1:
-						print('Boss takes '+GREEN+'DAMAGE'+ENDC+space_cancel)
-						enemy_hp_left -= player['stats']['strength']
+						print('Boss takes {0}DAMAGE{1} {2} {3}'.format(GREEN,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic == 1 else '',space_cancel))
+						enemy_hp_left -= player['stats']['strength'] * critic
 					if dmg == -1:
-						print('Player takes '+RED+'DAMAGE'+ENDC+space_cancel)
-						player['hp_left'] -= enemy[3]
+						print('Player takes {0}DAMAGE{1} {2} {3}'.format(RED,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
+						player['hp_left'] -= enemy[3] * critic
 					if dmg == 0:
 						print('Nothing happens..'+space_cancel)
 					sleep(1)
