@@ -161,10 +161,11 @@ def battle(player,enemy,fighters_moveset):
 				player['stats']['stamina'] = 0
 				return 0
 			else:
-				print(enemy[0],GREEN+'DEFEATED'+ENDC+'!!!'); sleep(1)
 				player['level'] += 1
-				print('You reach level '+YELLOW+str(player['level']+1)+ENDC+'!\n') 
 				player['stats']['stamina'] = 0
+				print(enemy[0],GREEN+'DEFEATED'+ENDC+'!!!'); sleep(1)
+				print('You reach level '+YELLOW+str(player['level']+1)+ENDC+'!'); sleep(1)
+				print(new_moves(player['level']),end='\n')
 				return 1
 		else:
 			print('You\'ll die instantly, be careful!')
@@ -343,7 +344,6 @@ def update_stats(player,stat,improve):
 	player['stats'][stat] = new_value if new_value < player['max_stats'][stat] else player['max_stats'][stat]
 	print('{4} upgrade: {0:.2f} -> {2}{1:.2f}{3}'.format(old,player['stats'][stat],GREEN,ENDC,stat.capitalize())); print('Training {}complete{}!\n'.format(YELLOW,ENDC))
 	
-
 def is_prefix(moveset,n,c):
 	'''Check if input is prefix of more complex move'''
 	return c in [x[:n+1] for x in moveset]
@@ -351,6 +351,13 @@ def is_prefix(moveset,n,c):
 def new_movesets(level):
 	'''Reload movesets base on level'''
 	return load_moveset(CSV_DIR+'moveset_player.csv',level),load_moveset(CSV_DIR+'moveset_bosses.csv',level)
+
+def new_moves(level):
+	'''Print new player move for next level'''
+	mp = load_moveset(CSV_DIR+'moveset_player.csv',level,only_new_level=True)
+	if mp: mp = mp[0]
+	return 'You learn a new move {2}{1}{4} [{3}{0}{4}], go to the dojo to learn more about it.\n'.format(mp[0],mp[1],YELLOW,PURPLE,ENDC) if mp else '\r'
+
 
 def is_alive(player):
 	'''Check if alive'''
@@ -375,10 +382,10 @@ def is_trainable(player,stats):
 		print('You already reach the '+YELLOW+'maximum'+ENDC+' value in '+YELLOW+stats+ENDC+' for this level.\n')
 		return 0
 
-def load_moveset(filename,level):
+def load_moveset(filename,level,only_new_level=False):
 	'''Load moveset base on player level'''
 	csv_moveset = read_csv_moveset(filename)
-	return [(s,n) for l,s,n in csv_moveset if l <= level]
+	return [(s,n) for l,s,n in csv_moveset if (not only_new_level and l <= level) or (only_new_level and l == level)]
 
 def get_shortcut(moveset):
 	'''Return list with actions shortcut'''
