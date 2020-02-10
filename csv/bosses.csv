@@ -1,3 +1,4 @@
 boss_name,hp,hp_left,damage,velocity,moveset
-Obrug the Fat,450,450,100,1,sgn
-Krest the Bold,350,350,900,2,sssmmn
+Obrug the Fat,245,245,100,1,sgn
+Krest the Bold,350,350,150,2,sssmmgn
+Fraph the Mixed,1000,1000,185,3,smgnn
