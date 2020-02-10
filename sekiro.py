@@ -10,14 +10,14 @@ import decimal
 
 SAVE_FILE = 'player.save'
 
-HEADER = '\033[95m'
-OKBLUE = '\033[94m'
-OKGREEN = '\033[92m'
-WARNING = '\033[93m'
-FAIL = '\033[91m'
-ENDC = '\033[0m'
+PURPLE = '\033[95m'
+BLUE = '\033[94m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
 BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
+ENDC = '\033[0m'
 ERASE = '\x1b[1A\x1b[2K'
 
 MENU = [('p','Player stats','check all the players stats'),
@@ -84,8 +84,8 @@ def get_name(fighters,move,who):
  
 def hp_bar(hp_total,hp_left):
 	'''Printing: HP bar'''
-	if hp_left <= 0: return '['+BOLD+FAIL+'XXXXXXXXXXXXXXX'+ENDC+']'+' {:.1f} %'.format(0)
-	else: return '['+BOLD+OKBLUE+''.join(['#' if x < round(hp_left * 15 / hp_total) else ENDC+'_' for x in range(15)])+ENDC+']'+' {:.1f} %'.format(hp_left/hp_total*100)
+	if hp_left <= 0: return '['+BOLD+RED+'XXXXXXXXXXXXXXX'+ENDC+']'+' {:.1f} %'.format(0)
+	else: return '['+BOLD+BLUE+''.join(['#' if x < round(hp_left * 15 / hp_total) else ENDC+'_' for x in range(15)])+ENDC+']'+' {:.1f} %'.format(hp_left/hp_total*100)
 
 def versus_step(player,enemy,enemy_hp_left):
 	'''Printing: versus step'''
@@ -104,10 +104,10 @@ def get_menu(title,hlp=False):
 def can_do_action(player):
 	'''Check if alive and if enough stamina'''
 	if not is_alive(player):
-		print('Seems you\'re '+FAIL+'dead'+ENDC+' [check '+WARNING+'stats'+ENDC+']\nTo resurrect, you need to restore the HP ['+WARNING+'rest'+ENDC+']\n')
+		print('Seems you\'re '+RED+'dead'+ENDC+' [check '+YELLOW+'stats'+ENDC+']\nTo resurrect, you need to restore the HP ['+YELLOW+'rest'+ENDC+']\n')
 		return False
 	elif not enough_stamina(player):
-		print('Seems you\'re out of '+FAIL+'stamina'+ENDC+' (0/3) [check '+WARNING+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+WARNING+'rest'+ENDC+']\n')
+		print('Seems you\'re out of '+RED+'stamina'+ENDC+' (0/3) [check '+YELLOW+'stats'+ENDC+']\nBefore doing stuff, you need to restore the stamina ['+YELLOW+'rest'+ENDC+']\n')
 		return False
 	else: return True
 
@@ -123,7 +123,7 @@ def battle(player,enemy,fighters_moveset):
 		if enough_fast(player,enemy[4]):
 
 			inkey = _Getch()
-			print('A new Boss appeared..'); sleep(2); print(BOLD+FAIL+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
+			print('A new Boss appeared..'); sleep(2); print(BOLD+RED+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
 			enemy_hp_left = enemy[2]
 			enemy_velocity = int(floor(player['stats']['focus']) - enemy[4] + 1)
 			while enemy_hp_left > 0 and player['hp_left'] > 0:
@@ -142,10 +142,10 @@ def battle(player,enemy,fighters_moveset):
 				finally:
 					space_cancel=' '*15
 					if dmg == 1:
-						print('Boss takes '+OKGREEN+'DAMAGE'+ENDC+space_cancel)
+						print('Boss takes '+GREEN+'DAMAGE'+ENDC+space_cancel)
 						enemy_hp_left -= player['stats']['strength']
 					if dmg == -1:
-						print('Player takes '+FAIL+'DAMAGE'+ENDC+space_cancel)
+						print('Player takes '+RED+'DAMAGE'+ENDC+space_cancel)
 						player['hp_left'] -= enemy[3]
 					if dmg == 0:
 						print('Nothing happens..'+space_cancel)
@@ -156,14 +156,14 @@ def battle(player,enemy,fighters_moveset):
 				print('Player dies...\n'); player['hp_left'] = 0
 				return 0
 			else:
-				print(enemy[0],OKGREEN+'DEFEATED'+ENDC+'!!!')
+				print(enemy[0],GREEN+'DEFEATED'+ENDC+'!!!')
 				player['level'] += 1
-				print('You reach level '+WARNING+str(player['level']+1)+ENDC+'!\n') 
+				print('You reach level '+YELLOW+str(player['level']+1)+ENDC+'!\n') 
 				player['stats']['stamina'] -= 1
 				return 1
 		else:
 			print('You\'ll die instantly, be careful!')
-			print('You don\'t have enough focus to counter this Boss\' velocity ['+WARNING+'train focus'+ENDC+']\n')
+			print('You don\'t have enough focus to counter this Boss\' velocity ['+YELLOW+'train focus'+ENDC+']\n')
 			return 0
 	
 	else: return 0
@@ -181,14 +181,14 @@ def strength_training(player):
 			inkey = _Getch()
 			d = select_difficulty(inkey,[(1,'Easy'),(2,'Hard')])
 			pattern = 'a'*(d+1)+'l'*(d+1)
-			print(); print('Repeat the pattern',BOLD+WARNING+pattern.upper()+ENDC,'as fast as you can for 5 seconds'); input('When you\'re ready, press ENTER '); print('GO!')
+			print(); print('Repeat the pattern',BOLD+YELLOW+pattern.upper()+ENDC,'as fast as you can for 5 seconds'); input('When you\'re ready, press ENTER '); print('GO!')
 			try:
 				train = input_with_timeout(5,inkey,False)
 			except ValueError: pass
 			
 			n = len(findall(pattern,train))
 			improve = n*2**(d+1) / 7 * d
-			print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,WARNING,ENDC,train.upper()))
+			print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,YELLOW,ENDC,train.upper()))
 			update_stats(player,'strength',improve)
 			player['stats']['stamina'] -= 1
 
@@ -206,7 +206,7 @@ def focus_training(player):
 			times = 5+((d-1)*2)
 			pattern = ''.join([chr(choice(range(97,123))) for _ in range(times)])
 			print('\n> 3',end='\r'); sleep(1); print('> 2',end='\r'); sleep(1); print('> 1',end='\r'); sleep(1); print('> GO!\n')
-			print('Insert the pattern',BOLD+WARNING+pattern.upper()+ENDC,'in the next 3 seconds!');
+			print('Insert the pattern',BOLD+YELLOW+pattern.upper()+ENDC,'in the next 3 seconds!');
 			try:
 				train = input_with_timeout(3,inkey,False)
 			except ValueError: pass
@@ -225,13 +225,13 @@ def dojo(movesets):
 	moveset_p,moveset_b = movesets[0],movesets[1]
 	remove_menu()
 	print(set_title('Dojo'))
-	print(WARNING+'Player moveset'+ENDC)
+	print(YELLOW+'Player moveset'+ENDC)
 	print('\n'.join(['  {0:<12} {1}'.format(UNDERLINE+k+ENDC,v) for k,v in moveset_p]))
-	print(WARNING+'Boss moveset'+ENDC)
+	print(YELLOW+'Boss moveset'+ENDC)
 	print('\n'.join(['  {0:<12} {1}'.format(UNDERLINE+k+ENDC,v) for k,v in moveset_b]))
 	print()
-	print('\\'+WARNING+'B'+ENDC+'   '+' '.join(['{:<11}'.format(UNDERLINE+move+ENDC) for move in get_shortcut(moveset_b)]))
-	print(WARNING+'P'+ENDC)
+	print('\\'+YELLOW+'B'+ENDC+'   '+' '.join(['{:<11}'.format(UNDERLINE+move+ENDC) for move in get_shortcut(moveset_b)]))
+	print(YELLOW+'P'+ENDC)
 	print('\n'.join(['{:<13}'.format(UNDERLINE+get_shortcut(moveset_p)[i]+ENDC)+'   '.join([replace_dmg(v) for v in row]) for i,row in enumerate(PARTIAL_MATRIX)]))
 	print()
 
@@ -239,7 +239,7 @@ def stats(player):
 	'''Print: stats'''
 	remove_menu()
 	print(set_title(player['name']+' stats'))
-	print('{15:<11}{11}{10}{14}{12}\n{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3:.2f}{12} / {17}\n{8:<11}{11}{10}{4:.2f}{12} / {18}\n{9:<11}{11}{10}{5}{12} / {16}\n'.format(player['name'],player['hp'],player['hp_left'],player['stats']['strength'],player['stats']['focus'],player['stats']['stamina'],'HP','Strength','Focus','Stamina',BOLD,WARNING,ENDC,UNDERLINE,player['level']+1,'Level',player['max_stats']['stamina'],player['max_stats']['strength'],player['max_stats']['focus']))
+	print('{15:<11}{11}{10}{14}{12}\n{6:<11}{11}{10}{2}{12} / {1}\n{7:<11}{11}{10}{3:.2f}{12} / {17}\n{8:<11}{11}{10}{4:.2f}{12} / {18}\n{9:<11}{11}{10}{5}{12} / {16}\n'.format(player['name'],player['hp'],player['hp_left'],player['stats']['strength'],player['stats']['focus'],player['stats']['stamina'],'HP','Strength','Focus','Stamina',BOLD,YELLOW,ENDC,UNDERLINE,player['level']+1,'Level',player['max_stats']['stamina'],player['max_stats']['strength'],player['max_stats']['focus']))
 
 def rest(player):
 	'''Resting: TODO'''
@@ -249,7 +249,7 @@ def rest(player):
 	player['stats']['stamina'] = 3
 	player['stats']['strength'] *= 0.95
 	player['stats']['focus'] *= 0.95
-	print(OKGREEN+'Rest completed!\n'+ENDC)
+	print(GREEN+'Rest completed!\n'+ENDC)
 
 def help():
 	'''Print: menu with help'''
@@ -273,7 +273,7 @@ def update_stats(player,stat,improve):
 	new_value = player['stats'][stat] + improve
 	old = player['stats'][stat]
 	player['stats'][stat] = new_value if new_value < player['max_stats'][stat] else player['max_stats'][stat]
-	print('Strength upgrade: {0:.2f} -> {2}{1:.2f}{3}'.format(old,player['stats'][stat],OKGREEN,ENDC)); print(OKGREEN+'Training complete!\n'+ENDC)
+	print('Strength upgrade: {0:.2f} -> {2}{1:.2f}{3}'.format(old,player['stats'][stat],GREEN,ENDC)); print(GREEN+'Training complete!\n'+ENDC)
 	
 
 def is_prefix(moveset,n,c):
@@ -300,7 +300,7 @@ def is_trainable(player,stats):
 	'''Check if stats is maxed'''
 	if player['stats'][stats] < player['max_stats'][stats]: return 1
 	else: 
-		print('You already reach the '+WARNING+'maximum'+ENDC+' value in '+WARNING+stats+ENDC+' for this level.\nIt\'s time to beat the boss!\n')
+		print('You already reach the '+YELLOW+'maximum'+ENDC+' value in '+YELLOW+stats+ENDC+' for this level.\nIt\'s time to beat the boss!\n')
 		return 0
 
 def load_moveset(filename,level):
@@ -349,8 +349,8 @@ def get_max_stats(filename,level):
 
 def replace_dmg(v):
 	'''Symbol for dojo table'''
-	if v == 1: return OKGREEN+'O'+ENDC
-	elif v == -1: return FAIL+'X'+ENDC
+	if v == 1: return GREEN+'O'+ENDC
+	elif v == -1: return RED+'X'+ENDC
 	else: return '-' 
 
 def new_level(player):
@@ -386,11 +386,11 @@ if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
 	player = load_data()
 	if player:
-		print('Welcome back {1}{0}{2}!\n'.format(player['name'],WARNING,ENDC))
+		print('Welcome back {1}{0}{2}!\n'.format(player['name'],YELLOW,ENDC))
 	else:
 		print('I\'ve never seen this noob before, I think you\'re new down here.')
 		usr = input('What\'s your name? ')
-		print('{1}{0}{3}? Kinda stupid name, but whatever.. Welcome on {2}SEKIRASH{3}!\n'.format(usr,WARNING,UNDERLINE,ENDC))
+		print('{1}{0}{3}? Kinda stupid name, but whatever.. Welcome on {2}SEKIRASH{3}!\n'.format(usr,YELLOW,UNDERLINE,ENDC))
 		player = new_player(usr)
 	# SET UP BOSS AND MOVESET -----------------------
 	enemies = read_csv_bosses(CSV_DIR+'bosses.csv')
@@ -429,5 +429,5 @@ if __name__ == '__main__':
 			dojo(FIGHTERS_MOVESET)
 		elif m == 'q':
 			save_data(player)
-			print(WARNING+'Game saved.'+ENDC)
+			print(YELLOW+'Game saved.'+ENDC)
 			break
