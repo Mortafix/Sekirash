@@ -194,6 +194,7 @@ def strength_training(player):
 					train = input_with_timeout(5,inkey,False)
 				except ValueError: pass
 				
+				train = train.lower().strip()
 				n = len(findall(pattern,train))
 				improve = n*2**(d+1) / 7 * d
 				print('\n| {3} |\nPattern executed {1}{0}{2} times.'.format(n,YELLOW,ENDC,train.upper()))
