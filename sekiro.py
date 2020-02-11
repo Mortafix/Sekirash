@@ -223,8 +223,9 @@ def focus_training(player):
 				train = input_with_timeout(seconds,inkey,False)
 			except ValueError: pass
 			
+			train = train.strip()
 			print('\n| {} |'.format(train.upper()))
-			if pattern == train:
+			if pattern.lower() == train.lower():
 				improve = 2**d / 10
 				update_stats(player,'focus',improve)
 			else:
