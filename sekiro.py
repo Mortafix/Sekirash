@@ -34,7 +34,7 @@ VS_MATRIX = [[0,-1,-1,-1],
 			 [0,0,-1,-1],
 			 [0,-1,0,0],
 			 [1,-1,-1,-1],
-			 [0,-1,-1,1]]
+			 [0,-1,-1,2]]
 
 # Input functions -----------------------------------
 
@@ -157,12 +157,12 @@ def battle(player,enemy,fighters_moveset):
 					finally:
 						space_cancel=' '*30
 						critic = 1.5 if random() < 0.15 else 1
-						if dmg == 1:
+						if dmg > 0:
 							print('Boss takes {0}DAMAGE{1} {2} {3}'.format(GREEN,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
-							enemy_hp_left -= player['stats']['strength'] * critic
-						if dmg == -1:
+							enemy_hp_left -= player['stats']['strength'] * dmg * critic
+						if dmg < 0:
 							print('Player takes {0}DAMAGE{1} {2} {3}'.format(RED,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
-							player['hp_left'] -= enemy[3] * critic
+							player['hp_left'] -= enemy[3] * dmg * critic
 						if dmg == 0:
 							print('Nothing happens..'+space_cancel)
 						sleep(1)
@@ -451,9 +451,15 @@ def get_max_stats(filename,level):
 
 def replace_dmg(v):
 	'''Symbol for dojo table'''
-	if v == 1: return GREEN+'O'+ENDC
-	elif v == -1: return RED+'X'+ENDC
-	else: return '-' 
+	dmg = abs(v)
+	if dmg == 0: dmg_str = '-'
+	elif dmg == 1: dmg_str = '1'
+	elif dmg == 2: dmg_str = '2'
+	elif dmg == 3: dmg_str = '3'
+	else: dmg_str = 'X'
+	if v > 0: return GREEN+dmg_str+ENDC
+	elif v < 0: return RED+dmg_str+ENDC
+	else: return dmg_str 
 
 def new_level(player):
 	'''Update max_stats and new moveset base on new level reached'''
