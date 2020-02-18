@@ -226,7 +226,7 @@ def focus_training(player):
 			train = train.strip()
 			print('\n| {} |'.format(train.upper()))
 			if pattern.lower() == train.lower():
-				improve = 2**d / 10
+				improve = 2**d / 10 + 0.1
 				update_stats(player,'focus',improve)
 			else:
 				print('The patterns don\'t match, {}no improvements{} this time.\n'.format(RED,ENDC))
@@ -462,10 +462,10 @@ def save_data(player):
 	with open(SAVE_FILE, 'wb') as f:
 		pickle.dump(player,f, protocol=2)
 
-def load_data():
+def load_data(file):
 	'''Load data from file'''
 	try:
-		with open(SAVE_FILE, 'rb') as f:
+		with open(file, 'rb') as f:
 			player = pickle.load(f)
 		return player
 	except FileNotFoundError:
@@ -483,7 +483,7 @@ def new_player(usr):
 
 if __name__ == '__main__':
 	# INITIAL SETTINGS ------------------------------
-	player = load_data()
+	player = load_data(SAVE_FILE)
 	if player:
 		print('Welcome back {1}{0}{2}!\n'.format(player['name'],YELLOW,ENDC))
 	else:
