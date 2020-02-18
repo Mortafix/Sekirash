@@ -4,7 +4,7 @@ from re import findall,sub
 import signal
 import csv
 from getchar import _Getch
-from math import floor
+from math import floor,log10
 import pickle
 import decimal
 
@@ -146,7 +146,7 @@ def battle(player,enemy,fighters_moveset):
 					space_cancel=' '*30
 					critic = 1.5 if random() < 0.15 else 1
 					if dmg == 1:
-						print('Boss takes {0}DAMAGE{1} {2} {3}'.format(GREEN,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic == 1 else '',space_cancel))
+						print('Boss takes {0}DAMAGE{1} {2} {3}'.format(GREEN,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
 						enemy_hp_left -= player['stats']['strength'] * critic
 					if dmg == -1:
 						print('Player takes {0}DAMAGE{1} {2} {3}'.format(RED,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
@@ -173,7 +173,6 @@ def battle(player,enemy,fighters_moveset):
 			return 0
 	
 	else: return 0
-
 
 def strength_training(player):
 	'''Training: improves strength'''
@@ -288,17 +287,27 @@ def rest(player):
 				print(ERASE*2,end='\r')
 			if restoring < 0:
 				print(ERASE,end='\r')
-				print('You follow the {}UNDEAD{} path..'.format(RED,ENDC)); sleep(1)
 				player['name'] += ' The UNDEAD'
+				undead_times = len(findall(' The UNDEAD',player['name']))
+				undead_times_card = ord_to_card(undead_times)
+				if undead_times < 2: print('You follow the {}UNDEAD{} path..'.format(RED,ENDC)); sleep(1)
+				else: print('You follow the {}UNDEAD{} path.. for the {} time!'.format(RED,ENDC,undead_times_card)); sleep(1)
+				if undead_times > 3:
+					increase_strength = 0.5
+					decrease_focus = 0.2
+				else:
+					increase_strength = 3 - undead_times + 0.5
+					decrease_focus = 2 ** (4 - undead_times) / 10   
 				print('HP: {0} -> {2}{1}{3}'.format(player['hp_left'],1,RED,ENDC))
-				print('Strength: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['strength'],player['max_stats']['strength'] * 2.5,GREEN,ENDC))	
-				print('Focus: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['focus'],player['stats']['focus'] * 0.4,RED,ENDC))
+				print('Strength: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['strength'],player['max_stats']['strength'] * increase_strength,GREEN,ENDC))	
+				print('Focus: {0:.2f} -> {2}{1:.2f}{3}'.format(player['stats']['focus'],player['stats']['focus'] * decrease_focus,RED,ENDC))
 				print('Stamina: {0} -> {2}{1}{3}'.format(player['stats']['stamina'],-666,PURPLE,ENDC))
 				player['hp_left'] = 1
 				player['stats']['stamina'] = -666
-				player['saved_undead'] = player['stats']['strength']
-				player['stats']['strength'] = player['max_stats']['strength'] * 2.5
-				player['stats']['focus'] *= 0.4
+				if undead_times < 2:
+					player['saved_undead'] = player['stats']['strength']
+				player['stats']['strength'] = player['max_stats']['strength'] * increase_strength
+				player['stats']['focus'] *= decrease_focus
 				print('Rest {}complete{}!\n'.format(YELLOW,ENDC))
 			else:
 				print(ERASE,end='\r')
@@ -318,7 +327,7 @@ def rest(player):
 				player['stats']['focus'] *= 0.95
 				print('Rest {}complete{}!\n'.format(YELLOW,ENDC))
 		else:
-			print('You\'re are {}full{} of stamina, you can\'t rest right now!\n'.format(RED,ENDC))
+			print('You\'re are {}full{} of stamina, you can\'t rest right now!\n'.format(YELLOW,ENDC))
 	else:
 		print('As {}undead{} you can\'t rest!\n'.format(RED,ENDC))
 
@@ -437,6 +446,14 @@ def replace_dmg(v):
 def new_level(player):
 	'''Update max_stats and new moveset base on new level reached'''
 	return get_max_stats(CSV_DIR+'stats.csv',player['level']),new_movesets(player['level'])
+
+def ord_to_card(integer):
+	'''Convert a number to the cardinal one'''
+	last_digit = integer % 10
+	if last_digit == 1: return '{}st'.format(integer)
+	elif last_digit == 2: return '{}nd'.format(integer)
+	elif last_digit == 3: return '{}rd'.format(integer)
+	else: return '{}th'.format(integer)
 
 # Save / Load Functions --------------------------------------
 
