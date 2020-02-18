@@ -126,47 +126,59 @@ def battle(player,enemy,fighters_moveset):
 		if enough_fast(player,enemy[4]):
 
 			inkey = _Getch()
-			print('A new Boss appeared..'); sleep(2); print(BOLD+RED+enemy[0].upper()+ENDC); sleep(2); print('FIGHT!',end='\n\n')
+			print('A new Boss appeared..'); sleep(2); print(BOLD+RED+enemy[0].upper()+ENDC)
 			enemy_hp_left = enemy[2]
 			enemy_velocity = int(floor(player['stats']['focus']) - enemy[4] + 1)
-			while enemy_hp_left > 0 and player['hp_left'] > 0:
-				print(versus_step(player,enemy,enemy_hp_left))
-				bm = rand_move(enemy[5])
-				try:
-					sleep(random())
-					print('Enemy does',get_name(fighters_moveset,bm,1),end='\n')
-					pm = input_with_timeout(enemy_velocity,inkey,moveset=get_shortcut(fighters_moveset[0]))
-					if possible_move(fighters_moveset[0],pm):
-						dmg = damage_vs(fighters_moveset,pm,bm)
-					else:
-						dmg = damage_vs(fighters_moveset,'n',bm)
-				except ValueError:
-					dmg = damage_vs(fighters_moveset,'n',bm)
-				finally:
-					space_cancel=' '*30
-					critic = 1.5 if random() < 0.15 else 1
-					if dmg == 1:
-						print('Boss takes {0}DAMAGE{1} {2} {3}'.format(GREEN,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
-						enemy_hp_left -= player['stats']['strength'] * critic
-					if dmg == -1:
-						print('Player takes {0}DAMAGE{1} {2} {3}'.format(RED,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
-						player['hp_left'] -= enemy[3] * critic
-					if dmg == 0:
-						print('Nothing happens..'+space_cancel)
-					sleep(1)
-					print(ERASE+ERASE+ERASE+ERASE,end='')
-			print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
-			if player['hp_left'] <= 0: 
-				print('Player dies...\n'); player['hp_left'] = 0
-				player['stats']['stamina'] = 0
-				return 0
+			
+			print('{0:<15}{6}{3}{7}\n{1:<15}{6}{4}{7}\n{2:<15}{6}{5}s{7}\n'.format('HP','Damage','Response time',enemy[1],enemy[3],enemy_velocity,YELLOW,ENDC))
+
+			r = input('Do you want to fight? ')
+			while not possible_choice(r[0],['y','n'],str):
+				print(ERASE,end='\r')
+				r = input('Do you want to fight? [y/n] ')
+
+			if r[0] == 'n': print('You {}run away{} faster than light!\n'.format(YELLOW,ENDC)); return 0
 			else:
-				player['level'] += 1
-				player['stats']['stamina'] = 0
-				print(enemy[0],GREEN+'DEFEATED'+ENDC+'!!!'); sleep(1)
-				print('You reach level '+YELLOW+str(player['level']+1)+ENDC+'!'); sleep(1)
-				print(new_moves(player['level']),end='\n')
-				return 1
+
+				print()
+				while enemy_hp_left > 0 and player['hp_left'] > 0:
+					print(versus_step(player,enemy,enemy_hp_left))
+					bm = rand_move(enemy[5])
+					try:
+						sleep(random())
+						print('Enemy does',get_name(fighters_moveset,bm,1),end='\n')
+						pm = input_with_timeout(enemy_velocity,inkey,moveset=get_shortcut(fighters_moveset[0]))
+						if possible_move(fighters_moveset[0],pm):
+							dmg = damage_vs(fighters_moveset,pm,bm)
+						else:
+							dmg = damage_vs(fighters_moveset,'n',bm)
+					except ValueError:
+						dmg = damage_vs(fighters_moveset,'n',bm)
+					finally:
+						space_cancel=' '*30
+						critic = 1.5 if random() < 0.15 else 1
+						if dmg == 1:
+							print('Boss takes {0}DAMAGE{1} {2} {3}'.format(GREEN,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
+							enemy_hp_left -= player['stats']['strength'] * critic
+						if dmg == -1:
+							print('Player takes {0}DAMAGE{1} {2} {3}'.format(RED,ENDC,'with '+PURPLE+'CRITIC'+ENDC if critic > 1 else '',space_cancel))
+							player['hp_left'] -= enemy[3] * critic
+						if dmg == 0:
+							print('Nothing happens..'+space_cancel)
+						sleep(1)
+						print(ERASE+ERASE+ERASE+ERASE,end='')
+				print(versus_step(player,enemy,enemy_hp_left),end='\n\n')
+				if player['hp_left'] <= 0: 
+					print('Player dies...\n'); player['hp_left'] = 0
+					player['stats']['stamina'] = 0
+					return 0
+				else:
+					player['level'] += 1
+					player['stats']['stamina'] = 0
+					print(enemy[0],GREEN+'DEFEATED'+ENDC+'!!!'); sleep(1)
+					print('You reach level '+YELLOW+str(player['level']+1)+ENDC+'!'); sleep(1)
+					print(new_moves(player['level']),end='\n')
+					return 1
 		else:
 			print('You\'ll die instantly, be careful!')
 			print('You don\'t have enough focus to counter this Boss\' velocity [{2}{0}{3}] [{1}train focus{3}]\n'.format(enemy[4],YELLOW,BLUE,ENDC))
